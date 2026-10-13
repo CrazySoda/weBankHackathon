@@ -1,0 +1,3 @@
+Finding(check_id=hs-classification, rule_id=gri-heading-first, severity=info,
+  summary="Unassembled kits classify as the complete article: 9405.41 (GRI 2(a))",
+  explanation="GRI 2(a): goods presented unassembled with the essential character of the complete article classify as the complete article; confidence 0.88 — human confirmation required before duties are computed.")

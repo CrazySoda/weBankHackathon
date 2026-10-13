@@ -1,0 +1,13 @@
+rules:
+  - rule_id: unsc-consolidated-screening
+    source_url: https://main.un.org/securitycouncil/en/sanctions/un-sc-consolidated-list
+    summary: The UN Security Council consolidated list is the baseline screening source; all deal parties and vessels must be screened against the version in force.
+  - rule_id: sanctions-transliteration-variance
+    source_url: https://www.un.org/securitycouncil/sanctions/inquiry
+    summary: UN list entries appear under multiple transliterations and aliases; screening must tolerate spelling variance rather than exact match only.
+  - rule_id: sanctions-ownership-rule
+    source_url: https://ofac.treasury.gov/sanctions-programs-and-country-information
+    summary: Property in which a listed person holds a majority ownership interest is blocked even when the holding entity itself is not named on any list.
+  - rule_id: sanctions-document-clearance
+    source_url: https://www.icc-ccs.org/
+    summary: ICC Commercial Crime Services — record list version, names screened and candidates rejected for every clearance; undocumented clearances fail audits.

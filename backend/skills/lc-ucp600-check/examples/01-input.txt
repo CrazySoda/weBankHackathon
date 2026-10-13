@@ -1,0 +1,3 @@
+LC No. BD-2024-118: expiry 2024-06-30, latest shipment 2024-06-10, amount USD 48,500.00.
+Invoice INV-2024-071: dated 2024-06-05, amount USD 48,500.00, goods "LED street lights 60W", 500 pcs.
+B/L: shipped on board 2024-06-12 (Shenzhen → Chittagong).

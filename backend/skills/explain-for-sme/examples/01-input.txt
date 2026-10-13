@@ -1,0 +1,3 @@
+state: findings=[(lc-consistency, block, open, port mismatch Shanghai/Shenzhen)],
+fx_options=[cny-settlement net 347,987], cash_projection min -124,500 day 35,
+no receipt.

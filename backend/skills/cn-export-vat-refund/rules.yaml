@@ -1,0 +1,13 @@
+rules:
+  - rule_id: cn-vat-rebate-tiers
+    source_url: http://www.chinatax.gov.cn/
+    summary: Export rebate rates are set per HS code in tiers of 13%, 9%, 6% and 0%; check the current table version in force at the export date.
+  - rule_id: cn-vat-input-cap
+    source_url: http://www.chinatax.gov.cn/
+    summary: The refund may not exceed the input VAT evidenced on VAT special invoices for the exported goods.
+  - rule_id: cn-vat-claim-window
+    source_url: http://www.chinatax.gov.cn/
+    summary: Export tax refund declarations must be filed within the prescribed period after the export date, with the customs declaration and FX receipt evidence.
+  - rule_id: cn-vat-exempt-credit-refund
+    source_url: http://www.chinatax.gov.cn/
+    summary: Manufacturing exporters use the exempt-credit-refund (mian-di-tui) method; input VAT offsets domestic-output VAT before any refund is paid.

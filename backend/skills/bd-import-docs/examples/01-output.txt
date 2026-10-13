@@ -1,0 +1,4 @@
+Finding(check_id=bd-import-docs, rule_id=bd-lca-required, severity=info,
+  summary="LCA valid (covers shipment date 2024-06-12), amount and beneficiary match the LC")
+Finding(check_id=bd-import-docs, rule_id=bd-irc-scope, severity=info,
+  summary="IRC chapter 94 covers HS 9405 goods")

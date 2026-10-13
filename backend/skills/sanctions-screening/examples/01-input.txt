@@ -1,0 +1,3 @@
+Screen: buyer "Rahim Traders Ltd, Dhaka"; vessel "MV Kota Nabil" IMO 9456123.
+screen_sanctions returns candidate "Rahim Trading Co." score 0.71 (listed 2019,
+address Karachi, director M. Iqbal — DOB 1975).

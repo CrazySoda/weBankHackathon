@@ -1,0 +1,2 @@
+Route C: quote 7.1895, fee 0, but converts via HKD (USD->HKD->CNY), two legs.
+Mid 7.1900.

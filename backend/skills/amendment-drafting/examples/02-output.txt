@@ -1,0 +1,8 @@
+AmendmentDraft:
+"Re: LC No. BD-2024-118. Amendment items:
+1. Field 32B — current: 'USD 120,000.00' — required: 'USD 126,400.00'.
+2. Field 45A — current: 'LED STREET LIGHTS' — required:
+   'LED STREET LIGHTS 60W'.
+Items 1 and 2 are requested as a single amendment; under UCP 600 Art. 10(c)
+you may accept or refuse only in full. Deadline: before expiry 2024-06-30."
+Note: tolerance analysis (Art. 30) pending with verify — not drafted.

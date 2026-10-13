@@ -1,0 +1,5 @@
+Finding(check_id=lc-consistency, rule_id=ucp600-art6-expiry, severity=block, fixable=false,
+  summary="B/L shipped on board 2024-06-12 is after the LC latest shipment date 2024-06-10",
+  evidence=[quote B/L on-board date, quote LC field 44E/44C terms])
+Finding(check_id=lc-consistency, rule_id=ucp600-art14c-presentation-period, severity=block, fixable=false,
+  summary="presentation on 2024-06-28 is within 21 days of 2024-06-12 and before expiry — no discrepancy")

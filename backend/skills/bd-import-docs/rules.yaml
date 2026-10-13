@@ -1,0 +1,13 @@
+rules:
+  - rule_id: bd-lca-required
+    source_url: https://customs.gov.bd/
+    summary: Bangladesh imports under a credit require a bank-issued Letter of Credit Authorisation before shipment; goods shipped against an expired LCA cannot be cleared.
+  - rule_id: bd-irc-scope
+    source_url: https://customs.gov.bd/
+    summary: Importers need a valid Import Registration Certificate covering the HS chapters of the imported goods.
+  - rule_id: bd-ait-hs-rate
+    source_url: http://www.nbr.gov.bd/
+    summary: NBR tariff schedule — advance income tax applies to assessable value at HS-line-specific rates and is adjustable against final tax.
+  - rule_id: bd-psi-certificate
+    source_url: https://customs.gov.bd/
+    summary: Where pre-shipment inspection is required, customs demands the appointed agency's clean inspection certificate with the entry.

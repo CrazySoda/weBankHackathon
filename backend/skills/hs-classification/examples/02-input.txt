@@ -1,0 +1,2 @@
+Goods: "electric kettle, plastic housing with stainless-steel body panel,
+1.7 L, 1850 W". Candidates: 8516.69 (0.62), 7323.93 (0.31).

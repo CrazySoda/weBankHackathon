@@ -1,0 +1,3 @@
+Finding(check_id=sanctions-screen, rule_id=sanctions-document-clearance, severity=info,
+  summary="Cleared: 'Rahim Traders Ltd' (Dhaka) vs listed 'Rahim Trading Co.' (Karachi) — address, jurisdiction and director differ",
+  evidence=["screened names: Rahim Traders Ltd; MV Kota Nabil IMO 9456123", "list version 2024-06-01, candidate rejected on address+jurisdiction"])

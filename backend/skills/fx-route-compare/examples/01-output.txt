@@ -1,0 +1,3 @@
+FxOption(route_id=bank-wire, spread_bp=82, fee_minor=30000, net CNY 345,773)
+FxOption(route_id=cny-settlement, spread_bp=21, fee_minor=0, net CNY 347,987)
+Summary: CNY settlement nets CNY 2,214 more (61 bp less spread than the bank wire).

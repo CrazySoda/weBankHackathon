@@ -1,0 +1,10 @@
+rules:
+  - rule_id: ucp600-art10-amendment-route
+    source_url: https://iccwbo.org/business-solutions/ucp-600/
+    summary: UCP 600 Art. 10 — a credit may be amended only through the issuing bank at the applicant's instruction; the beneficiary is bound once the advising bank communicates the amendment.
+  - rule_id: ucp600-art10c-partial-acceptance
+    source_url: https://iccwbo.org/business-solutions/ucp-600/
+    summary: UCP 600 Art. 10(c) — the beneficiary must accept or refuse an amendment in its entirety; partial acceptance is not allowed.
+  - rule_id: amendment-quote-exact
+    source_url: https://iccwbo.org/business-solutions/ucp-600/
+    summary: An amendment instruction must state the field, its exact current wording and its exact required wording — paraphrase invites a second discrepancy.

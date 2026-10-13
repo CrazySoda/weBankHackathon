@@ -1,0 +1,2 @@
+Finding(check_id=fx-compare, rule_id=fx-spread-plus-fees, severity=info,
+  summary="Route C headline spread 7 bp, but the HKD path pays two spreads — effective cost computed by calc_effective_fx_cost, compare on net_minor only")

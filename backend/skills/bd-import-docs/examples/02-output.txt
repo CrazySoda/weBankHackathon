@@ -1,0 +1,3 @@
+Finding(check_id=bd-import-docs, rule_id=bd-lca-required, severity=block, fixable=true,
+  summary="Shipment 2024-06-12 falls after LCA expiry 2024-05-31",
+  explanation="Goods shipped against an expired LCA cannot be cleared; the importer must extend the LCA before negotiation.")

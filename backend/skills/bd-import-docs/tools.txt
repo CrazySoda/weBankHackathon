@@ -1,0 +1,2 @@
+lookup_rules
+check_lc_documents

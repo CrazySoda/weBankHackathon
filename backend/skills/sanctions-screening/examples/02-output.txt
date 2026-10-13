@@ -1,0 +1,3 @@
+Finding(check_id=sanctions-screen, rule_id=sanctions-ownership-rule, severity=block, fixable=false,
+  summary="Beneficiary is 60%-owned by a listed entity — blocked under the majority-ownership rule although not itself named",
+  explanation="Escalate; the deal cannot proceed to finance or approval. Waivers do not apply to sanctions findings.")

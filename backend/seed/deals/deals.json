@@ -1,0 +1,642 @@
+{
+  "synthetic": true,
+  "description": "10 synthetic Shenzhen -> Bangladesh export deals with ground truth. All parties, amounts and documents are invented (BUILD_PLAN rule 0.10). Amounts are major-unit strings in USD; the checks engine (app.rules.checks) consumes lc_amount, total_amount, currency, beneficiary, applicant, goods_description, quantity, shipment_date and expiry_date.",
+  "deals": [
+    {
+      "deal_id": "seed-01",
+      "name": "clean-standard-lc",
+      "scenario": "clean",
+      "tenant_id": "demo-tenant",
+      "documents": [
+        {
+          "kind": "letter_of_credit",
+          "filename": "lc.pdf",
+          "fields": {
+            "lc_number": "LC-2026-0001",
+            "lc_form": "IRREVOCABLE",
+            "lc_amount": "100000.00",
+            "currency": "USD",
+            "applicant": "Dhaka Trading House",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "expiry_date": "2026-06-30",
+            "latest_shipment_date": "2026-06-10",
+            "lc_tenor_days": "30",
+            "goods_description": "100 percent cotton knitted T-shirts, style CK-101, sizes S to XXL",
+            "quantity": "1200 CTN",
+            "charge_terms": "ALL CHARGES OUTSIDE BD FOR BENEFICIARY"
+          }
+        },
+        {
+          "kind": "commercial_invoice",
+          "filename": "inv.pdf",
+          "fields": {
+            "invoice_number": "INV-2026-0001",
+            "invoice_date": "2026-05-18",
+            "lc_number": "LC-2026-0001",
+            "total_amount": "100000.00",
+            "currency": "USD",
+            "applicant": "Dhaka Trading House",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "goods_description": "100 percent cotton knitted T-shirts, style CK-101, sizes S to XXL",
+            "quantity": "1200 CTN",
+            "shipment_date": "2026-05-20"
+          }
+        },
+        {
+          "kind": "packing_list",
+          "filename": "pl.pdf",
+          "fields": {
+            "packing_list_number": "PL-2026-0001",
+            "invoice_number": "INV-2026-0001",
+            "quantity": "1200 CTN",
+            "total_packages": "1200",
+            "net_weight_kg": "9600",
+            "gross_weight_kg": "10200",
+            "beneficiary": "Shenzhen Sunny Goods Co"
+          }
+        }
+      ],
+      "ground_truth": {
+        "expected_findings": [],
+        "expected_outcome": "clean_approval"
+      }
+    },
+    {
+      "deal_id": "seed-02",
+      "name": "clean-low-value-lc",
+      "scenario": "clean",
+      "tenant_id": "demo-tenant",
+      "documents": [
+        {
+          "kind": "letter_of_credit",
+          "filename": "lc.pdf",
+          "fields": {
+            "lc_number": "LC-2026-0002",
+            "lc_form": "IRREVOCABLE",
+            "lc_amount": "48000.00",
+            "currency": "USD",
+            "applicant": "Chittagong Import Partners",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "expiry_date": "2026-05-31",
+            "latest_shipment_date": "2026-05-15",
+            "lc_tenor_days": "30",
+            "goods_description": "Stainless steel kitchen knives, model SK-204, 3-piece sets",
+            "quantity": "800 CTN",
+            "charge_terms": "ALL CHARGES OUTSIDE BD FOR BENEFICIARY"
+          }
+        },
+        {
+          "kind": "commercial_invoice",
+          "filename": "inv.pdf",
+          "fields": {
+            "invoice_number": "INV-2026-0002",
+            "invoice_date": "2026-04-08",
+            "lc_number": "LC-2026-0002",
+            "total_amount": "48000.00",
+            "currency": "USD",
+            "applicant": "Chittagong Import Partners",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "goods_description": "Stainless steel kitchen knives, model SK-204, 3-piece sets",
+            "quantity": "800 CTN",
+            "shipment_date": "2026-04-10"
+          }
+        },
+        {
+          "kind": "packing_list",
+          "filename": "pl.pdf",
+          "fields": {
+            "packing_list_number": "PL-2026-0002",
+            "invoice_number": "INV-2026-0002",
+            "quantity": "800 CTN",
+            "total_packages": "800",
+            "net_weight_kg": "7200",
+            "gross_weight_kg": "7800",
+            "beneficiary": "Shenzhen Sunny Goods Co"
+          }
+        }
+      ],
+      "ground_truth": {
+        "expected_findings": [],
+        "expected_outcome": "clean_approval"
+      }
+    },
+    {
+      "deal_id": "seed-03",
+      "name": "clean-bulk-garment-lc",
+      "scenario": "clean",
+      "tenant_id": "demo-tenant",
+      "documents": [
+        {
+          "kind": "letter_of_credit",
+          "filename": "lc.pdf",
+          "fields": {
+            "lc_number": "LC-2026-0003",
+            "lc_form": "IRREVOCABLE",
+            "lc_amount": "250000.00",
+            "currency": "USD",
+            "applicant": "Dhaka Trading House",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "expiry_date": "2026-07-31",
+            "latest_shipment_date": "2026-07-15",
+            "lc_tenor_days": "45",
+            "goods_description": "Polyester woven jackets, style PJ-330, quilted lining, sizes M to 3XL",
+            "quantity": "3600 CTN",
+            "charge_terms": "ALL CHARGES OUTSIDE BD FOR BENEFICIARY"
+          }
+        },
+        {
+          "kind": "commercial_invoice",
+          "filename": "inv.pdf",
+          "fields": {
+            "invoice_number": "INV-2026-0003",
+            "invoice_date": "2026-06-02",
+            "lc_number": "LC-2026-0003",
+            "total_amount": "250000.00",
+            "currency": "USD",
+            "applicant": "Dhaka Trading House",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "goods_description": "Polyester woven jackets, style PJ-330, quilted lining, sizes M to 3XL",
+            "quantity": "3600 CTN",
+            "shipment_date": "2026-06-05"
+          }
+        },
+        {
+          "kind": "packing_list",
+          "filename": "pl.pdf",
+          "fields": {
+            "packing_list_number": "PL-2026-0003",
+            "invoice_number": "INV-2026-0003",
+            "quantity": "3600 CTN",
+            "total_packages": "3600",
+            "net_weight_kg": "39600",
+            "gross_weight_kg": "41400",
+            "beneficiary": "Shenzhen Sunny Goods Co"
+          }
+        }
+      ],
+      "ground_truth": {
+        "expected_findings": [],
+        "expected_outcome": "clean_approval"
+      }
+    },
+    {
+      "deal_id": "seed-04",
+      "name": "clean-vat-refund-13pct",
+      "scenario": "clean_vat_refund",
+      "tenant_id": "demo-tenant",
+      "documents": [
+        {
+          "kind": "letter_of_credit",
+          "filename": "lc.pdf",
+          "fields": {
+            "lc_number": "LC-2026-0004",
+            "lc_form": "IRREVOCABLE",
+            "lc_amount": "80000.00",
+            "currency": "USD",
+            "applicant": "Sylhet Export Import Co",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "expiry_date": "2026-06-25",
+            "latest_shipment_date": "2026-06-10",
+            "lc_tenor_days": "30",
+            "goods_description": "LED desk lamps, model LT-88, 220V, with dimmer",
+            "quantity": "1500 CTN",
+            "charge_terms": "ALL CHARGES OUTSIDE BD FOR BENEFICIARY"
+          }
+        },
+        {
+          "kind": "commercial_invoice",
+          "filename": "inv.pdf",
+          "fields": {
+            "invoice_number": "INV-2026-0004",
+            "invoice_date": "2026-05-12",
+            "lc_number": "LC-2026-0004",
+            "total_amount": "80000.00",
+            "currency": "USD",
+            "applicant": "Sylhet Export Import Co",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "goods_description": "LED desk lamps, model LT-88, 220V, with dimmer",
+            "quantity": "1500 CTN",
+            "shipment_date": "2026-05-15",
+            "hs_code": "9405.42",
+            "vat_refund_rate_bp": "1300"
+          }
+        },
+        {
+          "kind": "packing_list",
+          "filename": "pl.pdf",
+          "fields": {
+            "packing_list_number": "PL-2026-0004",
+            "invoice_number": "INV-2026-0004",
+            "quantity": "1500 CTN",
+            "total_packages": "1500",
+            "net_weight_kg": "13500",
+            "gross_weight_kg": "14250",
+            "beneficiary": "Shenzhen Sunny Goods Co"
+          }
+        }
+      ],
+      "ground_truth": {
+        "expected_findings": [
+          {
+            "rule_id": "cn-vat-refund-eligible",
+            "severity": "info",
+            "fixable": false,
+            "explanation": "HS 9405.42 qualifies for the 13 percent export VAT rebate (bp 1300); informational only, no block findings."
+          }
+        ],
+        "expected_outcome": "clean_approval"
+      }
+    },
+    {
+      "deal_id": "seed-05",
+      "name": "clean-vat-refund-9pct",
+      "scenario": "clean_vat_refund",
+      "tenant_id": "demo-tenant",
+      "documents": [
+        {
+          "kind": "letter_of_credit",
+          "filename": "lc.pdf",
+          "fields": {
+            "lc_number": "LC-2026-0005",
+            "lc_form": "IRREVOCABLE",
+            "lc_amount": "54000.00",
+            "currency": "USD",
+            "applicant": "Khulna Home Goods Ltd",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "expiry_date": "2026-05-20",
+            "latest_shipment_date": "2026-05-05",
+            "lc_tenor_days": "30",
+            "goods_description": "Ceramic dinner plates, 24-piece sets, model CD-12",
+            "quantity": "900 CTN",
+            "charge_terms": "ALL CHARGES OUTSIDE BD FOR BENEFICIARY"
+          }
+        },
+        {
+          "kind": "commercial_invoice",
+          "filename": "inv.pdf",
+          "fields": {
+            "invoice_number": "INV-2026-0005",
+            "invoice_date": "2026-04-14",
+            "lc_number": "LC-2026-0005",
+            "total_amount": "54000.00",
+            "currency": "USD",
+            "applicant": "Khulna Home Goods Ltd",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "goods_description": "Ceramic dinner plates, 24-piece sets, model CD-12",
+            "quantity": "900 CTN",
+            "shipment_date": "2026-04-16",
+            "hs_code": "6912.00",
+            "vat_refund_rate_bp": "900"
+          }
+        },
+        {
+          "kind": "packing_list",
+          "filename": "pl.pdf",
+          "fields": {
+            "packing_list_number": "PL-2026-0005",
+            "invoice_number": "INV-2026-0005",
+            "quantity": "900 CTN",
+            "total_packages": "900",
+            "net_weight_kg": "11700",
+            "gross_weight_kg": "12420",
+            "beneficiary": "Shenzhen Sunny Goods Co"
+          }
+        }
+      ],
+      "ground_truth": {
+        "expected_findings": [
+          {
+            "rule_id": "cn-vat-refund-eligible",
+            "severity": "info",
+            "fixable": false,
+            "explanation": "HS 6912.00 qualifies for the 9 percent export VAT rebate (bp 900); informational only, no block findings."
+          }
+        ],
+        "expected_outcome": "clean_approval"
+      }
+    },
+    {
+      "deal_id": "seed-06",
+      "name": "fixable-invoice-exceeds-lc",
+      "scenario": "fixable",
+      "tenant_id": "demo-tenant",
+      "documents": [
+        {
+          "kind": "letter_of_credit",
+          "filename": "lc.pdf",
+          "fields": {
+            "lc_number": "LC-2026-0006",
+            "lc_form": "IRREVOCABLE",
+            "lc_amount": "100000.00",
+            "currency": "USD",
+            "applicant": "Dhaka Trading House",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "expiry_date": "2026-06-30",
+            "latest_shipment_date": "2026-06-15",
+            "lc_tenor_days": "30",
+            "goods_description": "Cotton canvas tote bags, model TB-05, natural colour, screen print",
+            "quantity": "1200 CTN",
+            "charge_terms": "ALL CHARGES OUTSIDE BD FOR BENEFICIARY"
+          }
+        },
+        {
+          "kind": "commercial_invoice",
+          "filename": "inv.pdf",
+          "fields": {
+            "invoice_number": "INV-2026-0006",
+            "invoice_date": "2026-05-08",
+            "lc_number": "LC-2026-0006",
+            "total_amount": "104500.00",
+            "currency": "USD",
+            "applicant": "Dhaka Trading House",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "goods_description": "Cotton canvas tote bags, model TB-05, natural colour, screen print",
+            "quantity": "1200 CTN",
+            "shipment_date": "2026-05-10"
+          }
+        },
+        {
+          "kind": "packing_list",
+          "filename": "pl.pdf",
+          "fields": {
+            "packing_list_number": "PL-2026-0006",
+            "invoice_number": "INV-2026-0006",
+            "quantity": "1200 CTN",
+            "total_packages": "1200",
+            "net_weight_kg": "10800",
+            "gross_weight_kg": "11400",
+            "beneficiary": "Shenzhen Sunny Goods Co"
+          }
+        }
+      ],
+      "ground_truth": {
+        "expected_findings": [
+          {
+            "rule_id": "lc-invoice-exceeds-lc",
+            "severity": "block",
+            "fixable": true,
+            "explanation": "UCP 600 Art. 18(b): invoice USD 104,500.00 exceeds LC USD 100,000.00. Cure: reduce the invoice or amend the LC amount."
+          }
+        ],
+        "expected_outcome": "resolve_then_approval"
+      }
+    },
+    {
+      "deal_id": "seed-07",
+      "name": "fixable-quantity-mismatch",
+      "scenario": "fixable",
+      "tenant_id": "demo-tenant",
+      "documents": [
+        {
+          "kind": "letter_of_credit",
+          "filename": "lc.pdf",
+          "fields": {
+            "lc_number": "LC-2026-0007",
+            "lc_form": "IRREVOCABLE",
+            "lc_amount": "75000.00",
+            "currency": "USD",
+            "applicant": "Rajshahi Retail Group",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "expiry_date": "2026-06-10",
+            "latest_shipment_date": "2026-05-25",
+            "lc_tenor_days": "30",
+            "goods_description": "Bamboo fiber bowls, model BF-21, 6-piece sets",
+            "quantity": "2000 CTN",
+            "charge_terms": "ALL CHARGES OUTSIDE BD FOR BENEFICIARY"
+          }
+        },
+        {
+          "kind": "commercial_invoice",
+          "filename": "inv.pdf",
+          "fields": {
+            "invoice_number": "INV-2026-0007",
+            "invoice_date": "2026-04-22",
+            "lc_number": "LC-2026-0007",
+            "total_amount": "75000.00",
+            "currency": "USD",
+            "applicant": "Rajshahi Retail Group",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "goods_description": "Bamboo fiber bowls, model BF-21, 6-piece sets",
+            "quantity": "1800 CTN",
+            "shipment_date": "2026-04-25"
+          }
+        },
+        {
+          "kind": "packing_list",
+          "filename": "pl.pdf",
+          "fields": {
+            "packing_list_number": "PL-2026-0007",
+            "invoice_number": "INV-2026-0007",
+            "quantity": "1800 CTN",
+            "total_packages": "1800",
+            "net_weight_kg": "12600",
+            "gross_weight_kg": "13300",
+            "beneficiary": "Shenzhen Sunny Goods Co"
+          }
+        }
+      ],
+      "ground_truth": {
+        "expected_findings": [
+          {
+            "rule_id": "doc-quantity-mismatch",
+            "severity": "block",
+            "fixable": true,
+            "explanation": "LC calls for 2000 CTN, invoice and packing list show 1800 CTN. Cure: correct the documents or amend the LC quantity."
+          }
+        ],
+        "expected_outcome": "resolve_then_approval"
+      }
+    },
+    {
+      "deal_id": "seed-08",
+      "name": "unfixable-beneficiary-mismatch",
+      "scenario": "unfixable",
+      "tenant_id": "demo-tenant",
+      "documents": [
+        {
+          "kind": "letter_of_credit",
+          "filename": "lc.pdf",
+          "fields": {
+            "lc_number": "LC-2026-0008",
+            "lc_form": "IRREVOCABLE",
+            "lc_amount": "60000.00",
+            "currency": "USD",
+            "applicant": "Dhaka Trading House",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "expiry_date": "2026-06-20",
+            "latest_shipment_date": "2026-06-05",
+            "lc_tenor_days": "30",
+            "goods_description": "Silk scarves, model SS-09, hand-rolled edges",
+            "quantity": "1000 CTN",
+            "charge_terms": "ALL CHARGES OUTSIDE BD FOR BENEFICIARY"
+          }
+        },
+        {
+          "kind": "commercial_invoice",
+          "filename": "inv.pdf",
+          "fields": {
+            "invoice_number": "INV-2026-0008",
+            "invoice_date": "2026-04-28",
+            "lc_number": "LC-2026-0008",
+            "total_amount": "60000.00",
+            "currency": "USD",
+            "applicant": "Dhaka Trading House",
+            "beneficiary": "Sunny Goods Trading Ltd",
+            "goods_description": "Silk scarves, model SS-09, hand-rolled edges",
+            "quantity": "1000 CTN",
+            "shipment_date": "2026-05-02"
+          }
+        },
+        {
+          "kind": "packing_list",
+          "filename": "pl.pdf",
+          "fields": {
+            "packing_list_number": "PL-2026-0008",
+            "invoice_number": "INV-2026-0008",
+            "quantity": "1000 CTN",
+            "total_packages": "1000",
+            "net_weight_kg": "4500",
+            "gross_weight_kg": "4900",
+            "beneficiary": "Sunny Goods Trading Ltd"
+          }
+        }
+      ],
+      "ground_truth": {
+        "expected_findings": [
+          {
+            "rule_id": "doc-beneficiary-mismatch",
+            "severity": "block",
+            "fixable": false,
+            "explanation": "Invoice is issued by Sunny Goods Trading Ltd but the LC names Shenzhen Sunny Goods Co as beneficiary; not curable by document correction alone, escalate."
+          }
+        ],
+        "expected_outcome": "escalate"
+      }
+    },
+    {
+      "deal_id": "seed-09",
+      "name": "unfixable-shipment-after-expiry",
+      "scenario": "unfixable",
+      "tenant_id": "demo-tenant",
+      "documents": [
+        {
+          "kind": "letter_of_credit",
+          "filename": "lc.pdf",
+          "fields": {
+            "lc_number": "LC-2026-0009",
+            "lc_form": "IRREVOCABLE",
+            "lc_amount": "90000.00",
+            "currency": "USD",
+            "applicant": "Dhaka Trading House",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "expiry_date": "2026-06-30",
+            "latest_shipment_date": "2026-06-15",
+            "lc_tenor_days": "30",
+            "goods_description": "Neoprene laptop sleeves, model NL-17, 13 to 16 inch",
+            "quantity": "1400 CTN",
+            "charge_terms": "ALL CHARGES OUTSIDE BD FOR BENEFICIARY"
+          }
+        },
+        {
+          "kind": "commercial_invoice",
+          "filename": "inv.pdf",
+          "fields": {
+            "invoice_number": "INV-2026-0009",
+            "invoice_date": "2026-07-12",
+            "lc_number": "LC-2026-0009",
+            "total_amount": "90000.00",
+            "currency": "USD",
+            "applicant": "Dhaka Trading House",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "goods_description": "Neoprene laptop sleeves, model NL-17, 13 to 16 inch",
+            "quantity": "1400 CTN",
+            "shipment_date": "2026-07-15"
+          }
+        },
+        {
+          "kind": "packing_list",
+          "filename": "pl.pdf",
+          "fields": {
+            "packing_list_number": "PL-2026-0009",
+            "invoice_number": "INV-2026-0009",
+            "quantity": "1400 CTN",
+            "total_packages": "1400",
+            "net_weight_kg": "9800",
+            "gross_weight_kg": "10500",
+            "beneficiary": "Shenzhen Sunny Goods Co"
+          }
+        }
+      ],
+      "ground_truth": {
+        "expected_findings": [
+          {
+            "rule_id": "ucp600-shipment-after-expiry",
+            "severity": "block",
+            "fixable": true,
+            "explanation": "Shipment 2026-07-15 is after LC expiry 2026-06-30. The engine marks the discrepancy fixable (an expiry amendment could cure it on paper) but the deal still escalates: the goods shipped after latest_shipment_date too, so the LC cannot be honoured as issued."
+          }
+        ],
+        "expected_outcome": "escalate"
+      }
+    },
+    {
+      "deal_id": "seed-10",
+      "name": "policy-deny-missing-beneficiary",
+      "scenario": "policy_deny",
+      "tenant_id": "demo-tenant",
+      "documents": [
+        {
+          "kind": "letter_of_credit",
+          "filename": "lc.pdf",
+          "fields": {
+            "lc_number": "LC-2026-0010",
+            "lc_form": "IRREVOCABLE",
+            "lc_amount": "120000.00",
+            "currency": "USD",
+            "applicant": "Dhaka Trading House",
+            "expiry_date": "2026-07-31",
+            "latest_shipment_date": "2026-07-10",
+            "lc_tenor_days": "30",
+            "goods_description": "Memory foam pillows, model MP-03, 50x70 cm",
+            "quantity": "2200 CTN",
+            "charge_terms": "ALL CHARGES OUTSIDE BD FOR BENEFICIARY"
+          }
+        },
+        {
+          "kind": "commercial_invoice",
+          "filename": "inv.pdf",
+          "fields": {
+            "invoice_number": "INV-2026-0010",
+            "invoice_date": "2026-05-25",
+            "lc_number": "LC-2026-0010",
+            "total_amount": "120000.00",
+            "currency": "USD",
+            "applicant": "Dhaka Trading House",
+            "beneficiary": "Shenzhen Sunny Goods Co",
+            "goods_description": "Memory foam pillows, model MP-03, 50x70 cm",
+            "quantity": "2200 CTN",
+            "shipment_date": "2026-05-28"
+          }
+        },
+        {
+          "kind": "packing_list",
+          "filename": "pl.pdf",
+          "fields": {
+            "packing_list_number": "PL-2026-0010",
+            "invoice_number": "INV-2026-0010",
+            "quantity": "2200 CTN",
+            "total_packages": "2200",
+            "net_weight_kg": "19800",
+            "gross_weight_kg": "20900",
+            "beneficiary": "Shenzhen Sunny Goods Co"
+          }
+        }
+      ],
+      "ground_truth": {
+        "expected_findings": [],
+        "expected_outcome": "escalate",
+        "notes": "No beneficiary on the LC: the checks engine produces no beneficiary finding (comparison skipped), but the policy engine denies payee_matches_beneficiary -> escalate (fail closed)."
+      }
+    }
+  ]
+}

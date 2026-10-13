@@ -1,0 +1,108 @@
+[project]
+name = "cleartrade-backend"
+version = "0.1.0"
+description = "ClearTrade — agent harness that pre-flights one cross-border export deal"
+requires-python = ">=3.12"
+dependencies = [
+    # API
+    "fastapi[standard]>=0.115",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "python-multipart>=0.0.17",
+    # Graph / agents
+    "langgraph>=1.2,<1.3",
+    "langgraph-checkpoint-postgres>=3.1",
+    # LLM gateway (backend only ever talks to the LiteLLM proxy,
+    # OpenAI-compatible endpoint; provider SDKs stay inside the proxy)
+    "openai>=1.60",
+    # DB
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.14",
+    "asyncpg>=0.30",
+    "psycopg[binary]>=3.2",          # sync driver used by langgraph postgres checkpointer
+    # Cache
+    "redis>=5.2",
+    # Document parsing
+    "pymupdf>=1.25",
+    "pillow>=11.0",
+    # Policy
+    "cedarpy>=4.12",
+    # Observability
+    "opentelemetry-sdk>=1.29",
+    "opentelemetry-instrumentation-fastapi>=0.50b0",
+    "opentelemetry-exporter-otlp>=1.29",
+    "langfuse>=3.0",
+    # Misc
+    "httpx>=0.28",
+    "cryptography>=44.0",
+    "structlog>=24.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "pytest-cov>=6.0",
+    "hypothesis>=6.122",
+    "fakeredis>=2.26",
+    "ruff>=0.8",
+    "mypy>=1.14",
+    "pre-commit>=4.0",
+    "freezegun>=1.5",
+    "asgi-lifespan>=2.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "T20", "RET", "SIM", "RUF"]
+# T20 bans print; N818 ignored: CurrencyMismatch/UnknownCurrency read better than *Error
+ignore = ["N818"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+"tests/eval/run_eval.py" = ["T201"]
+"app/tests/**" = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "app"
+files = ["app/calc", "app/harness", "app/graph"]
+disallow_untyped_defs = true
+warn_return_any = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+    "langgraph.*", "langgraph_checkpoint.*", "cedarpy", "fitz", "langfuse.*",
+    "opentelemetry.*", "fakeredis", "alembic.*", "psycopg.*", "yaml",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "integration: requires live services (Postgres/Redis) via env; skipped otherwise",
+    "llm: requires the LiteLLM proxy; skipped otherwise",
+]
+
+[tool.coverage.run]
+source = ["app/calc"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true

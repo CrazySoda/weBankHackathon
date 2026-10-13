@@ -1,0 +1,3 @@
+Finding(check_id=lc-consistency, rule_id=ucp600-art14d-typos, severity=info, fixable=false,
+  summary="Non-conflicting wording variation: invoice uses general terms consistent with the credit",
+  explanation="Art. 18(c) requires the invoice description to match the credit ('stainless steel vacuum flasks 500ml' appears in the invoice); the packing list may use terms not in conflict (Art. 14(d)).")

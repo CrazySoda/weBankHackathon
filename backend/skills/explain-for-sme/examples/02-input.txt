@@ -1,0 +1,2 @@
+state: sanctions block finding (buyer 60% owned by listed entity), escalation_reason
+set, no payout.

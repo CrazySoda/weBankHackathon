@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+.coverage
+htmlcov/
+dist/
+
+# Node
+node_modules/
+web/dist/
+miniprogram/dist/
+
+# Env / secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Local data
+*.sqlite3
+data/
+uploads/
+langfuse/
+
+# OS
+.DS_Store
+Thumbs.db

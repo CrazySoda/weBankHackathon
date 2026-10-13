@@ -1,0 +1,10 @@
+rules:
+  - rule_id: fx-mid-market-reference
+    source_url: https://www.bis.org/statistics/fx.htm
+    summary: BIS FX statistics — benchmark every route against the mid-market rate for the same pair and timestamp; spread is defined against mid, not against another route.
+  - rule_id: fx-spread-plus-fees
+    source_url: https://www.bis.org/statistics/fx.htm
+    summary: Total conversion cost is spread plus all fixed and proportional fees; a low headline spread with high fees is not a cheap route.
+  - rule_id: fx-quote-freshness
+    source_url: https://www.bis.org/statistics/fx.htm
+    summary: FX quotes are indicative and time-stamped; compare only quotes valid at the same reference time and flag tenor mismatch as risk.

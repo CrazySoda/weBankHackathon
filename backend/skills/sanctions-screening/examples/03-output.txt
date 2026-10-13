@@ -1,0 +1,3 @@
+Finding(check_id=sanctions-screen, rule_id=sanctions-transliteration-variance, severity=info,
+  summary="Cleared: transliteration-variant name candidate rejected — listed entry is an individual, consignee is a registered company (TRAD/DNCC/112233)",
+  explanation="Hyphenated/spaced variants ('Al Rahmaan'/'Al-Rahman') produce high fuzzy scores; entity type and registration identifiers disambiguate. Document both in the clearance.")

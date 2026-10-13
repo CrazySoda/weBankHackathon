@@ -1,0 +1,13 @@
+rules:
+  - rule_id: gri-heading-first
+    source_url: https://www.wcoomd.org/en/topics/nomenclature/overview/what-is-the-hs.aspx
+    summary: GRI 1 — classification is determined by the terms of the headings and any relative section or chapter notes.
+  - rule_id: gri-composite-essential-character
+    source_url: https://www.wcoomd.org/en/topics/nomenclature/overview/what-is-the-hs.aspx
+    summary: GRI 3(b) — composite goods and mixtures classify by the material or component giving their essential character.
+  - rule_id: gri-subheading-comparison
+    source_url: https://www.wcoomd.org/en/topics/nomenclature/overview/what-is-the-hs.aspx
+    summary: GRI 6 — subheading comparison is confined to subheadings within the same heading, applying the rules mutatis mutandis.
+  - rule_id: hs-stated-code-conflict
+    source_url: https://www.wcoomd.org/en/topics/nomenclature/overview/what-is-the-hs.aspx
+    summary: WCO advice — when documents state a code conflicting with the objective classification, re-classify and re-derive duties before clearing.

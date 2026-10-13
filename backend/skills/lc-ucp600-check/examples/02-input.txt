@@ -1,0 +1,2 @@
+LC amount: USD 120,000.00. Invoice INV-0093: USD 126,400.00, currency USD,
+goods description "cycling helmets (matches LC)".

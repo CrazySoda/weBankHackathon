@@ -1,0 +1,3 @@
+Finding(check_id=cn-vat-refund, rule_id=cn-vat-rebate-tiers, severity=block,
+  summary="HS 2701 carries a 0% rebate — no VAT refund available on this shipment",
+  explanation="Priced the deal as if the refund existed; re-run cashflow without the refund inflow.")

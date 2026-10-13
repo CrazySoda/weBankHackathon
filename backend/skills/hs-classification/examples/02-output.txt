@@ -1,0 +1,3 @@
+Finding(check_id=hs-classification, rule_id=gri-composite-essential-character, severity=info,
+  summary="Kettle functions as an electrothermic domestic appliance: 8516.69 (GRI 3(b) essential character = function)",
+  explanation="Stainless body is a component, not the essential character; heading 8516 (electrothermic appliances) is more specific than 7323 (table/kitchen steelware).")

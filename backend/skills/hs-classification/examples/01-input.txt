@@ -1,0 +1,3 @@
+Goods per invoice: "LED street light luminaires 60W, aluminium housing with
+LED module and driver, complete". LC states HS 8539.50 (discharge lamps).
+Candidate from suggest_hs_code: 9405.40 (luminaires), confidence 0.93.

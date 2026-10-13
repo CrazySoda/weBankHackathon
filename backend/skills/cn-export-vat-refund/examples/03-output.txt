@@ -1,0 +1,3 @@
+Finding(check_id=cn-vat-refund, rule_id=cn-vat-claim-window, severity=warn, fixable=true,
+  summary="Refund claim not yet filed; window for the 2024-03-02 export closes 2025-04-30",
+  explanation="File the declaration with the customs export declaration and the FX receipt evidence before the window lapses; late claims forfeit the refund.")

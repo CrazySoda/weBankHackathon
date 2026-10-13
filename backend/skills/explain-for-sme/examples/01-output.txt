@@ -1,0 +1,6 @@
+"This shipment is paused for one fixable problem: the letter of credit says
+your goods leave from Shanghai, but they leave from Shenzhen. Ask your buyer
+to correct the port before 30 June — we drafted the request for you.
+If you fix it, you should receive 347,987 yuan after currency conversion.
+Heads-up: your cash is lowest on day 35, about 124,500 yuan short, until the
+payment arrives. Next step: send the correction request to your buyer today."

@@ -1,0 +1,4 @@
+Finding(check_id=lc-consistency, rule_id=ucp600-art18b-invoice-amount, severity=block, fixable=true,
+  summary="Invoice USD 126,400.00 exceeds LC amount USD 120,000.00",
+  explanation="Art. 18(b): invoice may not exceed the credit; either credit the difference or amend the LC.",
+  fixable=true)

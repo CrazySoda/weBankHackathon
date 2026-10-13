@@ -1,0 +1,2 @@
+Two findings: (a) LC amount USD 120,000 vs invoice USD 126,400 (over-shipment
+within 5% tolerance); (b) goods description omits '60W'.

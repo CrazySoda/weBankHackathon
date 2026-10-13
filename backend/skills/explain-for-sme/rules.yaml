@@ -1,0 +1,10 @@
+rules:
+  - rule_id: sme-plain-language
+    source_url: https://iccwbo.org/business-solutions/incoterms-rules/
+    summary: Report text must not assume trade-finance vocabulary; every term of art is replaced by its plain-language meaning in the same sentence.
+  - rule_id: sme-numbers-fixed-upstream
+    source_url: http://www.chinatax.gov.cn/
+    summary: Report text quotes figures computed by the calculators and stored in state; it never converts, rounds, sums or derives a number.
+  - rule_id: sme-one-action-next
+    source_url: https://iccwbo.org/business-solutions/ucp-600/
+    summary: The report closes with exactly one concrete next action and its deadline; multiple parallel asks are prioritised to the top action.

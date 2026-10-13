@@ -1,0 +1,105 @@
+# ClearTrade — local demo stack.
+#
+# All images are pinned BY DIGEST (rule 0.11). To bump an image, resolve the new
+# digest and update it here — never float a tag.
+#
+# Requires Docker Desktop with WSL integration enabled for this distro.
+
+name: cleartrade
+
+services:
+  postgres:
+    image: pgvector/pgvector@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11 # pgvector:pg18
+    environment:
+      POSTGRES_USER: cleartrade
+      POSTGRES_PASSWORD: cleartrade
+      POSTGRES_DB: cleartrade
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cleartrade"]
+      interval: 5s
+      retries: 10
+
+  valkey:
+    image: valkey/valkey@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507 # 8.1-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  litellm:
+    image: ghcr.io/berriai/litellm@sha256:60947db020b57e204823d3fbc8bb295c85be890d7c9adcc77fb4f5fc2fe410b2 # v1.105.0
+    # NOTE: image versions 1.82.7 and 1.82.8 were malicious — do not unpinned-float.
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    ports:
+      - "127.0.0.1:4000:4000"
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set in .env}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set in .env}
+      LITELLM_DB_URL: ${LITELLM_DB_URL:-sqlite:///tmp/litellm.db}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro
+    # Admin UI not exposed; only the API port above, localhost-only.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:4000/health/liveliness || exit 1"]
+      interval: 10s
+      retries: 10
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cleartrade:cleartrade@postgres:5432/cleartrade
+      SYNC_DATABASE_URL: postgresql+psycopg://cleartrade:cleartrade@postgres:5432/cleartrade
+      REDIS_URL: redis://valkey:6379/0
+      LITELLM_BASE_URL: http://litellm:4000
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      litellm:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      - backend
+
+  # ---- Observability (profile: obs) — heavy; enable with --profile obs ----
+  langfuse:
+    image: langfuse/langfuse@sha256:a343f64e035eb01aeea358703a0428945d909d01e19452509a5a830862dda878 # v3
+    profiles: ["obs"]
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      DATABASE_URL: postgresql://cleartrade:cleartrade@postgres:5432/langfuse
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-me-in-demo}
+      SALT: ${LANGFUSE_SALT:-change-me-in-demo}
+      NEXTAUTH_URL: http://localhost:3000
+      TELEMETRY_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

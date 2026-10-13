@@ -1,0 +1,3 @@
+LC goods: "stainless steel vacuum flasks 500ml".
+Invoice goods: "vacuum flasks 500ml, stainless steel".
+Packing list goods: "flasks".

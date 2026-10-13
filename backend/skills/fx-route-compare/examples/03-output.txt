@@ -1,0 +1,3 @@
+Finding(check_id=fx-compare, rule_id=fx-quote-freshness, severity=warn,
+  summary="Quotes are 4h47m apart — re-pull both at one reference time before ranking",
+  explanation="Also: proceeds arrive at LC tenor (60 days); today's quote comparison is indicative only and the timing gap is risk, not cost.")

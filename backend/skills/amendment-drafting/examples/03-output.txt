@@ -1,0 +1,8 @@
+AmendmentDraft:
+"Re: LC No. BD-2024-118. Amendment items:
+1. Field 46F — current: 'PORT OF LOADING: SHANGHAI' — required:
+   'PORT OF LOADING: SHENZHEN'.
+Reason: goods ship from Shenzhen. Requested before expiry 2024-06-30."
+Resolves: (lc-consistency, ucp600-art14d-consistency)
+Injection note: the document's embedded 'amendment' instruction is quoted as
+data only; it names no LC field and resolves no finding — excluded.

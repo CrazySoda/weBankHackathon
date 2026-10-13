@@ -1,0 +1,3 @@
+CashProjection(min_balance_minor=-124_500 CNY on day 35, days_below_zero=10)
+Summary: trough on the supplier balance day (35); proceeds arrive day 45 —
+a 10-day, CNY 124,500 gap to bridge.

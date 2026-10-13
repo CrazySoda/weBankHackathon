@@ -1,0 +1,8 @@
+AmendmentDraft:
+"Re: LC No. BD-2024-118. We request the following amendment(s):
+1. Field 46F documents required / B/L clause — current: 'PORT OF LOADING:
+   SHANGHAI' — required: 'PORT OF LOADING: SHENZHEN'.
+Reason: goods ship from Shenzhen; documents cannot show the stated port.
+Please instruct your bank (issuing bank) to issue this amendment before
+expiry 2024-06-30."
+Resolves: (lc-consistency, ucp600-art14d-consistency)

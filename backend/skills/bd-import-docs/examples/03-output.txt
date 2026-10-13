@@ -1,0 +1,3 @@
+Finding(check_id=bd-import-docs, rule_id=bd-ait-hs-rate, severity=warn, fixable=true,
+  summary="LC HS 8539.50 (source lamps) conflicts with the goods described (complete luminaires, HS 9405)",
+  explanation="Duty/VAT/AIT lines differ between 8539 and 9405; run suggest_hs_code and re-feed calc_landed_cost with the corrected line.")

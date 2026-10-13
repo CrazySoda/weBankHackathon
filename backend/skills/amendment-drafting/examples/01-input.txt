@@ -1,0 +1,2 @@
+Finding (fixable): LC 46F "PORT OF LOADING: SHANGHAI" but shipment loads at
+Shenzhen (B/L port of loading: SHENZHEN).

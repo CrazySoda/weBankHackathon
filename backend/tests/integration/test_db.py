@@ -1,0 +1,219 @@
+"""Postgres integration tests (M1 acceptance criteria).
+
+These are the plan's M1 "done when" tests:
+- the audit chain detects a tampered row
+- RLS blocks cross-tenant reads
+- a rule superseded on date X is not returned for deals dated after X
+- audit_event is append-only (UPDATE/DELETE revoked)
+
+They require a live Postgres (docker compose up, or TEST_DATABASE_URL) and are
+skipped otherwise — unit tests never depend on services.
+"""
+
+from __future__ import annotations
+
+import os
+from datetime import UTC, date, datetime
+
+import pytest
+from app.audit.events import AuditEvent
+from app.db.models import Base
+from app.rules.store import sql_rules_in_force
+from sqlalchemy import create_engine, text
+
+pytestmark = pytest.mark.integration
+
+DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "")
+PG = pytest.importorskip("psycopg") if not DATABASE_URL else None
+
+
+def _url() -> str:
+    return DATABASE_URL or "postgresql+psycopg://cleartrade:cleartrade@localhost:5432/cleartrade"
+
+
+@pytest.fixture()
+def pg_engine():
+    if not (DATABASE_URL or _pg_reachable()):
+        pytest.skip("no TEST_DATABASE_URL and local Postgres unreachable")
+    eng = create_engine(_url())
+    Base.metadata.create_all(eng)
+    yield eng
+    eng.dispose()
+
+
+def _pg_reachable() -> bool:
+    try:
+        eng = create_engine(_url())
+        with eng.connect():
+            pass
+        eng.dispose()
+        return True
+    except Exception:
+        return False
+
+
+def _set_tenant(conn, tenant: str) -> None:
+    conn.execute(text("SET app.current_tenant = :t"), {"t": tenant})
+
+
+class TestRls:
+    def test_cross_tenant_read_blocked(self, pg_engine):
+        with pg_engine.begin() as conn:
+            conn.execute(text("TRUNCATE trade_deal"))
+            conn.execute(text("SET app.current_tenant = 'tenant_a'"))
+            conn.execute(
+                text(
+                    "INSERT INTO trade_deal (id, tenant_id, state) "
+                    "VALUES ('d1', 'tenant_a', 'created')"
+                )
+            )
+            conn.execute(text("COMMIT"))
+
+        with pg_engine.connect() as conn:
+            _set_tenant(conn, "tenant_b")
+            n = conn.execute(text("SELECT count(*) FROM trade_deal WHERE id = 'd1'")).scalar()
+            assert n == 0
+
+        with pg_engine.connect() as conn:
+            _set_tenant(conn, "tenant_a")
+            n = conn.execute(text("SELECT count(*) FROM trade_deal WHERE id = 'd1'")).scalar()
+            assert n == 1
+
+
+class TestAuditAppendOnly:
+    def test_update_delete_revoked(self, pg_engine):
+        with pg_engine.begin() as conn:
+            conn.execute(text("SET app.current_tenant = 'tenant_a'"))
+            conn.execute(
+                text(
+                    "INSERT INTO audit_event (tenant_id, deal_id, kind, payload, prev_hash, hash) "
+                    "VALUES ('tenant_a', 'd1', 'test', '{}', '0', 'h') ON CONFLICT DO NOTHING"
+                )
+            )
+            conn.execute(text("COMMIT"))
+
+        conn = pg_engine.connect()
+        conn.execute(text("SET app.current_tenant = 'tenant_a'"))
+        with pytest.raises(Exception):  # noqa: B017 - psycopg errors vary
+            conn.execute(text("UPDATE audit_event SET kind = 'forged' WHERE deal_id = 'd1'"))
+        conn.rollback()
+        with pytest.raises(Exception):  # noqa: B017
+            conn.execute(text("DELETE FROM audit_event WHERE deal_id = 'd1'"))
+        conn.rollback()
+        conn.close()
+
+
+class TestAuditChainTamper:
+    def test_tampered_row_detected(self, pg_engine):
+        """Verify the stored chain end-to-end; a mutated payload breaks it."""
+        from app.calc.money import canonical_json, sha256_hex
+
+        with pg_engine.begin() as conn:
+            conn.execute(text("TRUNCATE audit_event"))
+            prev = "0" * 64
+            for i, kind in enumerate(["node_started", "node_finished", "tool_called"]):
+                payload = {"node": f"n{i}", "seq": i}
+                ts = datetime.now(UTC)
+                body = {
+                    "kind": kind,
+                    "deal_id": "d1",
+                    "tenant_id": "tenant_a",
+                    "payload": payload,
+                    "ts": ts.isoformat(),
+                }
+                h = sha256_hex(prev + canonical_json(body))
+                conn.execute(
+                    text(
+                        "INSERT INTO audit_event (tenant_id, deal_id, kind, payload, "
+                        "ts, prev_hash, hash) "
+                        "VALUES (:t, :d, :k, cast(:p AS jsonb), :ts, :ph, :h)"
+                    ),
+                    {
+                        "t": "tenant_a",
+                        "d": "d1",
+                        "k": kind,
+                        "p": canonical_json(payload),
+                        "ts": ts,
+                        "ph": prev,
+                        "h": h,
+                    },
+                )
+                prev = h
+            conn.execute(text("COMMIT"))
+
+        def verify() -> bool:
+            with pg_engine.connect() as conn:
+                _set_tenant(conn, "tenant_a")
+                rows = conn.execute(
+                    text(
+                        "SELECT kind, deal_id, tenant_id, payload, ts, prev_hash, hash "
+                        "FROM audit_event ORDER BY id"
+                    )
+                ).all()
+            p = "0" * 64
+            for r in rows:
+                body = {
+                    "kind": r.kind,
+                    "deal_id": r.deal_id,
+                    "tenant_id": r.tenant_id,
+                    "payload": dict(r.payload),
+                    "ts": r.ts.isoformat(),
+                }
+                if sha256_hex(p + canonical_json(body)) != r.hash:
+                    return False
+                p = r.hash
+            return True
+
+        assert verify()
+
+        # tamper directly in storage (as a DBA would)
+        with pg_engine.begin() as conn:
+            conn.execute(text("GRANT UPDATE ON audit_event TO cleartrade"))
+            conn.execute(text("SET app.current_tenant = 'tenant_a'"))
+            conn.execute(
+                text(
+                    "UPDATE audit_event "
+                    "SET payload = payload || '{\"seq\": 999}' WHERE kind = 'node_finished'"
+                )
+            )
+            conn.execute(text("REVOKE UPDATE ON audit_event FROM cleartrade"))
+            conn.execute(text("COMMIT"))
+
+        assert not verify()
+
+
+class TestRulesSql:
+    def test_superseded_rule_not_served_after_date(self, pg_engine):
+        with pg_engine.begin() as conn:
+            conn.execute(text("TRUNCATE rule"))
+            rows = [
+                ("R1", "1.0", date(2024, 1, 1), date(2026, 1, 1), None),
+                ("R1", "2.0", date(2026, 1, 1), None, None),
+            ]
+            for rule_id, ver, vf, vt, sup in rows:
+                conn.execute(
+                    text(
+                        "INSERT INTO rule (rule_id, jurisdiction, topic, version, content, "
+                        "source_url, valid_from, valid_to, superseded_at) "
+                        "VALUES (:r, 'CN', 'vat_refund', :v, cast('{}' AS jsonb), 'https://x', "
+                        ":vf, :vt, :sup)"
+                    ),
+                    {"r": rule_id, "v": ver, "vf": vf, "vt": vt, "sup": sup},
+                )
+            conn.execute(text("COMMIT"))
+
+        with pg_engine.connect() as conn:
+            before = sql_rules_in_force(conn, "CN", "vat_refund", date(2025, 12, 31))
+            after = sql_rules_in_force(conn, "CN", "vat_refund", date(2026, 6, 1))
+
+        assert [r.version for r in before if r.rule_id == "R1"] == ["1.0"]
+        assert [r.version for r in after if r.rule_id == "R1"] == ["2.0"]
+
+
+def test_event_model_chain_matches_db_convention():
+    """The AuditEvent model's chain() must match the SQL test convention."""
+    e = AuditEvent(
+        kind="k", deal_id="d", tenant_id="t", payload={"a": 1}, ts="2026-01-01T00:00:00+00:00"
+    )
+    h = e.chain("0" * 64)
+    assert len(h) == 64

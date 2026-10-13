@@ -1,0 +1,2 @@
+Finding(check_id=cn-vat-refund, rule_id=cn-vat-rebate-tiers, severity=info,
+  summary="Rebate 13% of CNY 210,000 = CNY 27,300 (calc_export_vat_refund), equal to input VAT — fully refundable")

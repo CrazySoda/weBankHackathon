@@ -1,0 +1,2 @@
+Goods: "unassembled LED tube light kits (tubes, end caps, wires, diffusers),
+packed flat for retail assembly". Candidate: 9405.41, confidence 0.88.

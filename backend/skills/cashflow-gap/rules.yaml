@@ -1,0 +1,10 @@
+rules:
+  - rule_id: cash-deposit-outflow-timing
+    source_url: https://iccwbo.org/business-solutions/incoterms-rules/
+    summary: Supplier deposits and production costs flow at contract and shipment dates; map every outflow to its contractual trigger before projecting.
+  - rule_id: cash-lc-tenor-inflow
+    source_url: https://iccwbo.org/business-solutions/ucp-600/
+    summary: Under UCP 600, sight credits pay on compliant presentation; usance credits pay at tenor after acceptance — proceeds land later than shipment, never earlier.
+  - rule_id: cash-min-balance-floor
+    source_url: https://iccwbo.org/business-solutions/incoterms-rules/
+    summary: Liquidity risk is judged on the minimum projected balance (worst day), not on averages or end-of-period balances.

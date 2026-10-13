@@ -1,0 +1,13 @@
+rules:
+  - rule_id: ucp600-art6-expiry
+    source_url: https://iccwbo.org/business-solutions/ucp-600/
+    summary: A credit must state an expiry date and a place for presentation; documents presented after expiry are discrepant.
+  - rule_id: ucp600-art14d-consistency
+    source_url: https://iccwbo.org/business-solutions/ucp-600/
+    summary: Data in a document must not conflict with data in that document, the credit, or any other stipulated document.
+  - rule_id: ucp600-art18b-invoice-amount
+    source_url: https://iccwbo.org/business-solutions/ucp-600/
+    summary: A commercial invoice must be made out in the currency of the credit and must not exceed the credit amount.
+  - rule_id: icc-cs-doc-fraud
+    source_url: https://www.icc-ccs.org/
+    summary: ICC Commercial Crime Services guidance — misdescribed or altered trade documents are a recurring fraud vector; treat alterations as blocks.
