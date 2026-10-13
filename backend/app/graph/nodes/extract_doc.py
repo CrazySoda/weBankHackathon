@@ -62,12 +62,23 @@ async def extract_doc(state: DealState, ctx: NodeContext) -> dict[str, Any]:
     assert ctx.docs is not None, "extract_doc requires a document store"
 
     stored_bytes = ctx.docs.get(doc.sha256)
+    if doc.mime != "application/pdf":
+        extracted = ExtractedDoc(
+            doc_id=doc.doc_id,
+            sha256=doc.sha256,
+            kind=doc.kind,
+            fields=[],
+            extraction_model="unsupported-image",
+            low_confidence=True,
+        )
+        return {"extracted": [extracted]}
     spans = _spans_for(stored_bytes, doc.mime)
     text = full_text(spans) or "[image document]"
+    system, version = ctx.system_prompt("extract_doc", state)
 
     result = await ctx.llm.complete(
         alias="fast",
-        system=SYSTEM,
+        system=system + "\n\n" + SYSTEM,
         messages=[
             {
                 "role": "user",
@@ -80,6 +91,7 @@ async def extract_doc(state: DealState, ctx: NodeContext) -> dict[str, Any]:
         ],
         output_model=ExtractionOutput,
         node="extract_doc",
+        prompt_version=version,
     )
 
     parsed = result.output
@@ -105,4 +117,4 @@ async def extract_doc(state: DealState, ctx: NodeContext) -> dict[str, Any]:
         extraction_model=result.use.deployment,
         low_confidence=low,
     )
-    return {"extracted": [extracted]}
+    return {"extracted": [extracted], "served_by": [result.use]}

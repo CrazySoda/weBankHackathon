@@ -23,7 +23,12 @@ from app.channels.wechat.client import (
     verify_soter_binding,
 )
 from app.graph.state import SignedApproval, new_id
-from app.security.approval import deal_hash
+from app.security.approval import (
+    ApprovalError,
+    approval_render,
+    deal_hash,
+    verify_approval,
+)
 
 
 class WechatDeps:
@@ -76,22 +81,16 @@ def create_wechat_router(deps: WechatDeps) -> APIRouter:
 
         # recompute what the approval screen shows and bind the hash
         state = rec.state
-        render = {
-            "deal_id": state.deal_id,
-            "findings": [
-                {"check_id": f.check_id, "rule_id": f.rule_id, "severity": f.severity}
-                for f in state.findings
-            ],
-            "fx_options": [o.model_dump() for o in state.fx_options],
-            "finance_offer": state.finance_offer.model_dump() if state.finance_offer else None,
-            "amount_minor": _amount_minor(state),
-        }
+        render = approval_render(state)
         h = deal_hash(render)
 
         try:
             verify_soter_binding(body.soter, expected_deal_hash=h, expected_openid=body.openid)
         except WechatError as e:
             raise HTTPException(403, f"soter rejected: {e}") from None
+
+        if body.openid not in deps.runner.approval_verifier.approver_keys:
+            raise HTTPException(403, "approver has no registered signing key")
 
         approval = SignedApproval(
             deal_hash=h,
@@ -101,6 +100,10 @@ def create_wechat_router(deps: WechatDeps) -> APIRouter:
             signed_at=_utcnow_iso(),
             nonce=new_id("nonce"),
         )
+        try:
+            verify_approval(approval, state.deal_id, render, deps.runner.approval_verifier)
+        except ApprovalError as e:
+            raise HTTPException(403, f"approval signature rejected: {e}") from None
         return {"approval": approval.model_dump()}
 
     @router.post("/notify")

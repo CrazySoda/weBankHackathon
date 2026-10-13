@@ -8,8 +8,14 @@ Postgres; the graph code does not change.
 from __future__ import annotations
 
 import asyncio
+import base64
+import json
 from dataclasses import dataclass, field
 from typing import Any
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from langgraph.checkpoint.memory import InMemorySaver
+from redis import Redis
 
 from app.audit.anchor import MockAnchor
 from app.audit.events import GENESIS, AuditEvent, AuditSink
@@ -19,8 +25,8 @@ from app.graph.state import DealState, DocRef, new_id
 from app.harness.budget import DealBudget
 from app.harness.hooks import NodeContext
 from app.harness.llm import LLMClient
+from app.security.approval import ApprovalVerifier
 from app.security.storage import DocumentStore
-from langgraph.checkpoint.memory import InMemorySaver
 
 
 @dataclass
@@ -101,6 +107,12 @@ class DealRunner:
         self._checkpointers: dict[str, InMemorySaver] = {}
         self.audit = EventfulAuditSink(self)
         self.anchor = MockAnchor()
+        self.idempotency = Redis.from_url(settings.redis_url, decode_responses=True)
+        raw_keys = json.loads(settings.approval_public_keys_json)
+        self.approval_verifier = ApprovalVerifier({
+            name: Ed25519PublicKey.from_public_bytes(base64.b64decode(value, validate=True))
+            for name, value in raw_keys.items()
+        })
         self.llm = LLMClient(
             base_url=settings.litellm_base_url,
             api_key=settings.litellm_virtual_key,
@@ -169,6 +181,8 @@ class DealRunner:
             llm=self.llm,
             docs=self.docs,
             anchor=self.anchor,
+            redis=self.idempotency,
+            approval_verifier=self.approval_verifier,
         )
 
     async def run(self, deal_id: str) -> None:
@@ -185,7 +199,7 @@ class DealRunner:
             self._emit_interrupt_payload(deal_id, final)
             rec.queue.put_nowait({"type": "done", "state": rec.state.model_dump()})
         except Exception as e:
-            rec.queue.put_nowait({"type": "error", "detail": repr(e)})
+            rec.queue.put_nowait({"type": "error", "detail": type(e).__name__})
         finally:
             rec.running = False
 
@@ -193,6 +207,14 @@ class DealRunner:
         from langgraph.types import Command
 
         rec = self._require(deal_id)
+        if rec.running:
+            rec.queue.put_nowait({"type": "error", "detail": "deal already running"})
+            return
+        if resume_payload.get("action") == "corrected_document":
+            resume_payload = {
+                **resume_payload,
+                "documents": [doc.model_dump() for doc in rec.state.documents],
+            }
         rec.running = True
         graph = build_graph(self._graph_ctx(deal_id), checkpointer=self._checkpointer(deal_id))
         config = {"configurable": {"thread_id": rec.thread_id}}
@@ -202,7 +224,7 @@ class DealRunner:
             self._emit_interrupt_payload(deal_id, final)
             rec.queue.put_nowait({"type": "done", "state": rec.state.model_dump()})
         except Exception as e:
-            rec.queue.put_nowait({"type": "error", "detail": repr(e)})
+            rec.queue.put_nowait({"type": "error", "detail": type(e).__name__})
         finally:
             rec.running = False
 

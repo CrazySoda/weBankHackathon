@@ -50,7 +50,6 @@ export default function App() {
   const [deals, setDeals] = useState<string[]>(loadDeals);
   const [selected, setSelected] = useState<string | null>(() => loadDeals()[0] ?? null);
   const [tab, setTab] = useState<TabId>("overview");
-  const [tenantId, setTenantId] = useState("demo-tenant");
   const [uploadKind, setUploadKind] = useState<DocKind>("letter_of_credit");
   const [hasFile, setHasFile] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -153,7 +152,7 @@ export default function App() {
   useEffect(() => () => esRef.current?.close(), []);
 
   const createDeal = useMutation({
-    mutationFn: () => api.createDeal(tenantId),
+    mutationFn: () => api.createDeal(),
     onSuccess: (res) => {
       setDeals((prev) => [res.deal_id, ...prev]);
       setSelected(res.deal_id);
@@ -203,13 +202,6 @@ export default function App() {
 
         <div className="sidebar-actions">
           <div className="row" style={{ gap: 6 }}>
-            <input
-              style={{ flex: 1, minWidth: 0 }}
-              value={tenantId}
-              onChange={(e) => setTenantId(e.target.value)}
-              placeholder="tenant id"
-              aria-label="Tenant id"
-            />
             <button
               className="btn btn-primary"
               onClick={() => createDeal.mutate()}
@@ -267,7 +259,7 @@ export default function App() {
             >
               <span className="deal-id">{id}</span>
               <span className="deal-meta">
-                <span>tenant {tenantId}</span>
+                <span>synthetic demo</span>
                 {id === selected && streaming && <span className="live-dot">live</span>}
               </span>
             </button>

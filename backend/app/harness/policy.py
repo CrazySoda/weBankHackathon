@@ -81,7 +81,8 @@ def _inputs(state: DealState, amount_cap_minor: int, payee: str | None) -> Polic
         amount_cap_minor=amount_cap_minor,
         payee_matches_beneficiary=payee_match,
         has_open_block_finding=bool(open_blocks),
-        has_invalid_waiver=any(not f.explanation or len(f.explanation) < 8 for f in waivers),
+        # No authenticated structured waiver record is persisted yet.
+        has_invalid_waiver=bool(waivers),
         sanctions_hit=bool(sanctions),
     )
 
@@ -89,7 +90,7 @@ def _inputs(state: DealState, amount_cap_minor: int, payee: str | None) -> Polic
 def _rule(inputs: PolicyInput, rule_id: str) -> PolicyRuleResult:
     match rule_id:
         case "amount_cap":
-            ok = inputs.amount_minor <= inputs.amount_cap_minor
+            ok = 0 < inputs.amount_minor <= inputs.amount_cap_minor
             return PolicyRuleResult(
                 rule=rule_id,
                 allowed=ok,

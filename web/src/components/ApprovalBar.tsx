@@ -75,24 +75,14 @@ function HumanApprovalBar({
   const best = bestRoute(state);
 
   async function act(action: "approve" | "reject") {
+    if (action === "approve") {
+      setError("Approval is disabled until a registered passkey signer is configured.");
+      return;
+    }
     setBusy(action);
     setError(null);
     try {
-      if (action === "approve") {
-        // Demo stub approval: in production this is a WebAuthn passkey
-        // signature over deal_hash produced in the browser.
-        const approval = {
-          deal_hash: "0".repeat(64),
-          approver_id: "owner-demo",
-          method: "webauthn_passkey" as const,
-          signature_b64: "c2ln",
-          signed_at: new Date().toISOString(),
-          nonce: crypto.randomUUID(),
-        };
-        await api.resume(state.deal_id, { action: "approve", approval, note });
-      } else {
-        await api.resume(state.deal_id, { action: "reject", note });
-      }
+      await api.resume(state.deal_id, { action: "reject", note });
       onResumed();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -191,10 +181,10 @@ function HumanApprovalBar({
         />
         <button
           className="btn btn-approve"
-          disabled={busy !== null}
+          disabled
           onClick={() => act("approve")}
         >
-          {busy === "approve" ? "Signing…" : "Approve payout"}
+          Passkey approval unavailable
         </button>
         <button
           className="btn btn-reject"
@@ -206,7 +196,7 @@ function HumanApprovalBar({
       </div>
       {error && <p className="error-text">{error}</p>}
       <p className="faint" style={{ fontSize: 12, marginBottom: 0 }}>
-        Demo approval signs a stub WebAuthn payload (deal_hash of zeros) — sandbox only, synthetic data.
+        Approval requires a valid signature from a registered approver key. No demo signature is accepted.
       </p>
     </div>
   );

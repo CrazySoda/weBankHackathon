@@ -17,8 +17,9 @@ to confirm every real discrepancy with quoted evidence.
 # Output contract
 
 Return a `VerifyOutput` (pydantic, `app/graph/nodes/verify.py`): a `Verdict`
-per finding — `confirmed` | `rejected` | `needs_evidence` — with `confidence`
-and a short `reason`. The node stores the confirmed findings in
+per finding with `check_id`, nullable `upheld`, `needs_evidence`, and a short
+`reason`. Set `needs_evidence=true` unless the quoted evidence directly supports
+the verdict. The node stores the confirmed findings in
 `state.verified`. Each verdict must cite text returned by `read_source_doc`
 (quote it in `reason`); a verdict you cannot ground in the source is
 `needs_evidence`, which fails closed toward `escalate`. Do not create new

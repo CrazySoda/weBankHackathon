@@ -1,20 +1,20 @@
 # PROGRESS
 
-Updated: 2026-10-13 (third checkpoint — M0–M7 + M9 core complete)
+Updated: 2026-10-14 (post-review corrections; gates not rerun)
 
 ## Milestone status
 
 | Milestone | Status |
 |---|---|
 | M0 skeleton/infra | ✅ files done; ⚠️ `docker compose up` untested until Docker Desktop WSL integration is enabled |
-| M1 data layer + audit chain | ✅ (Postgres integration tests env-gated) |
+| M1 data layer + audit chain | ⚠️ schema and tests exist; runtime persistence and DB-backed audit are not wired |
 | M2 deterministic calculators | ✅ 100% branch coverage enforced |
 | M3 intake/extraction/injection + seeds | ✅ incl. 10 deals + 8 poisoned docs, deterministic PDFs |
 | M4 tools/skills/prompts | ✅ registry, 9 skills, 16 prompts, loaders |
 | M5 the graph | ✅ all 6 acceptance edges pass |
-| M6 approval/policy/execution | ✅ incl. replay/modified/double-submit tests |
-| M7 API/streaming/web | ✅ backend + React console |
-| M8 WeChat | ✅ adapter + router + tests (mocked HTTP; live account pending) |
+| M6 approval/policy/execution | ⚠️ demo Ed25519 verifier; real WebAuthn is not integrated |
+| M7 API/streaming/web | ⚠️ local demo API + React console; API auth and production tenant persistence missing |
+| M8 WeChat | ⚠️ client/router code exists; router is not mounted; live SOTER verification and Mini Program missing |
 | M9 evals/red team | ✅ offline metrics all at target; promptfoo configs written; live-model eval + fallback drill pending |
 | M10 demo hardening | ❌ not started |
 
@@ -85,13 +85,31 @@ Updated: 2026-10-13 (third checkpoint — M0–M7 + M9 core complete)
    `docker compose up`, LiteLLM proxy smoke test, live `extract_doc` accuracy
    run vs the ≥90% target, poisoned-doc live run for the injection-resistance
    metric, M9 fallback drill (kill primary model mid-run).
-2. **M8 live**: WeChat test account + Mini Program pages (backend adapter and
-   routes are done and tested against mocks).
+2. **M8 live**: mount and configure the WeChat routes, integrate server-side
+   SOTER verification, then build Mini Program pages and validate with a test account.
 3. **M10**: one-command demo reset, scripted demo deals, China model profile.
-4. Optional: real WebAuthn on the web console (currently stub-signed approval
-   in the UI; backend verification is implemented and tested).
+4. Implement and configure a real WebAuthn verifier for the web console.
 
-## Quality gates (all green, verified)
+## Post-review corrections (not yet verified)
+
+- Approval now verifies a configured approver Ed25519 signature against a
+  canonical current-state render; execution repeats the check and requires
+  policy allow, no open block findings, and Redis idempotency.
+- Execution act operations now go through the node-allowlisted tool registry.
+- Verification rereads quoted evidence from the source PDF; ungrounded or
+  inconclusive open findings fail closed to escalation.
+- Runtime model calls load the versioned prompt files and selected skill
+  content; prompt versions are recorded on `ModelUse`.
+- Upload size is bounded while streaming and file signatures are checked;
+  missing sources and unsupported image inspection fail closed.
+- The web approval stub is disabled. Real WebAuthn, WeChat SOTER signature
+  verification, authenticated tenant identity, Postgres-backed runner/audit/
+  checkpoint wiring, image vision extraction, and live malware scanning remain
+  deployment gaps. Do not treat M1/M6/M8 as production complete.
+- Postgres integration tests now require an explicit dedicated test database;
+  they no longer fall back to the local demo database, which they truncate.
+
+## Last recorded quality gates (pre-review baseline; current changes are unverified)
 
 ```bash
 cd backend

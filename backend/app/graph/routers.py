@@ -18,6 +18,12 @@ RouterOutcome = Literal[
 ]
 
 
+def after_intake(state: DealState) -> str | list[Send]:
+    if fatal(state) or not state.documents:
+        return "escalate"
+    return fan_out_docs(state)
+
+
 def fatal(state: DealState) -> bool:
     return state.fatal_error is not None
 
@@ -36,17 +42,28 @@ def fan_out_docs(state: DealState) -> list[Send]:
         )
         for doc in state.documents
         if doc.sha256 not in extracted_hashes
-    ]
+    ] or [Send("escalate", state.model_dump())]
 
 
 def after_screen(state: DealState) -> RouterOutcome:
     if fatal(state) or state.blocked_by_injection():
+        return "escalate"
+    extracted_ids = {d.doc_id for d in state.extracted}
+    if (len(extracted_ids) != len(state.documents) or
+            any(not d.fields or d.low_confidence or any(f.confidence < 0.7 for f in d.fields)
+                for d in state.extracted)):
         return "escalate"
     return "plan"
 
 
 def after_verify(state: DealState) -> RouterOutcome:
     if fatal(state):
+        return "escalate"
+    verified_keys = {(f.check_id, f.rule_id) for f in state.verified}
+    if any(
+        f.status == "open" and (f.check_id, f.rule_id) not in verified_keys
+        for f in state.findings
+    ):
         return "escalate"
     blocks = [f for f in state.findings if f.severity == "block" and f.status == "open"]
     fixable = [f for f in blocks if f.fixable]
@@ -67,6 +84,8 @@ def after_policy(state: DealState) -> RouterOutcome:
 
 def after_approval(state: DealState) -> RouterOutcome:
     # approval rejected/absent -> report without execution
+    if fatal(state):
+        return "escalate"
     if state.approval is not None:
         return "execute"
     return "report"

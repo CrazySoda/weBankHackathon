@@ -114,6 +114,7 @@ class LLMClient:
         messages: list[dict[str, str]],
         output_model: type[T],
         node: str = "",
+        prompt_version: str = "",
         allow_degraded: bool = True,
         temperature: float = 0.0,
         max_tokens: int = 4096,
@@ -155,6 +156,7 @@ class LLMClient:
                     served=served,
                     usage=usage,
                     degraded=_is_degraded(alias, served),
+                    prompt_version=prompt_version,
                 )
                 if use.degraded and not allow_degraded:
                     raise DegradedModelError(
@@ -180,7 +182,8 @@ class LLMClient:
         )
 
     def _record_use(
-        self, node: str, alias: str, served: str, usage: dict[str, Any], degraded: bool
+        self, node: str, alias: str, served: str, usage: dict[str, Any], degraded: bool,
+        prompt_version: str = "",
     ) -> ModelUse:
         use = ModelUse(
             node=node,
@@ -190,6 +193,7 @@ class LLMClient:
             completion_tokens=usage.get("completion_tokens", 0) or 0,
             cost_minor=_cost_minor(usage),
             degraded=degraded,
+            prompt_version=prompt_version,
         )
         self.usage_log.append(use)
         return use

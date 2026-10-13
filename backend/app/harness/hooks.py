@@ -17,8 +17,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from pydantic import ValidationError
-
 from app.audit.events import AuditEvent, AuditSink
 from app.graph.state import DealState
 from app.harness.budget import BudgetExceeded, DealBudget
@@ -47,6 +45,33 @@ class NodeContext:
     docs: Any = None  # DocumentStore
     redis: Any = None  # redis client (idempotency keys)
     anchor: Any = None  # AnchorClient
+    approval_verifier: Any = None
+    prompts_dir: Any = None
+    skills_dir: Any = None
+
+    def system_prompt(self, node: str, state: DealState, extra: str = "") -> tuple[str, str]:
+        import hashlib
+        from pathlib import Path
+
+        from app.harness.prompts.loader import load_prompt
+        from app.harness.skills.loader import load_manifests, render_skills_section
+
+        prompts = (
+            Path(self.prompts_dir)
+            if self.prompts_dir
+            else Path(__file__).resolve().parents[2] / "prompts"
+        )
+        skills = (
+            Path(self.skills_dir)
+            if self.skills_dir
+            else Path(__file__).resolve().parents[2] / "skills"
+        )
+        chosen = state.check_plan.chosen_skills if state.check_plan else []
+        skill_text = render_skills_section(load_manifests(skills), node, chosen)
+        base = load_prompt(prompts, node).replace("{{skills}}", skill_text)
+        rendered = base + ("\n\n## Runtime instructions\n" + extra if extra else "")
+        version = hashlib.sha256(rendered.encode("utf-8")).hexdigest()[:12]
+        return rendered, version
 
 
 NodeFn = Callable[[DealState, NodeContext], dict[str, Any] | Any]
@@ -108,6 +133,10 @@ def wrap_with_hooks(name: str, fn: NodeFn, ctx: NodeContext) -> WrappedFn:
             if inspect.isawaitable(outcome):
                 outcome = await outcome
             update = _validate_update(name, outcome)
+            candidate = DealState.model_validate({**state.model_dump(), **update})
+            problems = validate_state_invariants(candidate)
+            if problems:
+                raise ValueError(f"node {name} violated state invariants: {problems}")
         except GraphInterruptError as interrupt_exc:
             # control-flow exception from langgraph interrupt(): must propagate,
             # not be turned into a failure
@@ -126,10 +155,10 @@ def wrap_with_hooks(name: str, fn: NodeFn, ctx: NodeContext) -> WrappedFn:
                     kind="node_failed",
                     deal_id=state.deal_id,
                     tenant_id=state.tenant_id,
-                    payload={"node": name, "error": repr(e)},
+                    payload={"node": name, "error_type": type(e).__name__},
                 )
             )
-            return {"fatal_error": f"node {name} failed: {e}"}
+            return {"fatal_error": f"node {name} failed ({type(e).__name__})"}
 
         # -- after --
         try:
@@ -141,7 +170,7 @@ def wrap_with_hooks(name: str, fn: NodeFn, ctx: NodeContext) -> WrappedFn:
                     payload={"node": name, "summary": _summary(update)},
                 )
             )
-        except ValidationError:
+        except Exception:
             return {"fatal_error": f"node {name}: audit write failed"}
         return update
 
@@ -162,4 +191,8 @@ def validate_state_invariants(state: DealState) -> list[str]:
         problems.append("empty cash projection")
     if state.receipt is not None and state.approval is None:
         problems.append("receipt without approval")
+    if state.receipt is not None and (state.policy is None or state.policy.decision != "allow"):
+        problems.append("receipt without an allow policy decision")
+    if state.receipt is not None and state.has_block_findings():
+        problems.append("receipt while an open block finding exists")
     return problems

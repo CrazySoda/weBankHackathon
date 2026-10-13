@@ -96,12 +96,13 @@ backend/skills/       9 skills: SKILL.md + curated rules.yaml + tools.txt +
                       examples/ (validated against node tool allowlists)
 backend/prompts/      16 versioned per-node prompts
 web/                  React review console (Vite + TS + React Query)
-miniprogram/          WeChat Mini Program (pages pending; backend adapter done)
+miniprogram/          WeChat Mini Program (pages pending; adapter code is not mounted)
 evals/promptfoo/      red-team suite (OWASP ASI01/02/07 cases + controls)
 ```
 
 ## Status
 
-See [PROGRESS.md](PROGRESS.md). Short version: M0–M7 complete and tested,
-M8 backend adapter done, M9 offline metrics at target. Remaining work needs
-live infrastructure (Docker compose, LiteLLM proxy, WeChat test account).
+See [PROGRESS.md](PROGRESS.md). The local demo and offline baseline are
+implemented, but current post-review changes have not been rerun through the
+gates. Runtime Postgres persistence, authenticated users, real WebAuthn/SOTER,
+and Mini Program pages remain incomplete.

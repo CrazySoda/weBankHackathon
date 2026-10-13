@@ -24,7 +24,8 @@ class Settings(BaseSettings):
     litellm_timeout_s: float = 35.0
 
     # --- Auth / crypto ---
-    approval_signing_key: str  # base64 ed25519 seed; no default = fail fast
+    approval_signing_key: str = ""  # deprecated; signers must keep private keys client-side
+    approval_public_keys_json: str = "{}"  # approver_id -> base64 raw Ed25519 public key
 
     # --- Budgets (kill switches) ---
     budget_max_steps: int = 64

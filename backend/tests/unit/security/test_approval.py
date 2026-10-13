@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import base64
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from app.graph.state import SignedApproval
-from app.security.approval import ApprovalError, ApprovalVerifier, deal_hash, sign_deal_hash
+from app.security.approval import ApprovalError, ApprovalVerifier, deal_hash, sign_approval
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 
@@ -36,14 +35,15 @@ def render():
 def mk_approval(keys, render: dict, approver: str = "owner") -> SignedApproval:
     h = deal_hash(render)
     key = keys[approver]
-    return SignedApproval(
+    approval = SignedApproval(
         deal_hash=h,
         approver_id=approver,
         method="webauthn_passkey",
-        signature_b64=sign_deal_hash(h, key),
+        signature_b64="",
         signed_at=datetime.now(UTC).isoformat(),
         nonce="nonce-1",
     )
+    return approval.model_copy(update={"signature_b64": sign_approval(approval, key)})
 
 
 @pytest.fixture()
@@ -61,9 +61,10 @@ class TestReplay:
     def test_replayed_approval_after_window_rejected(self, keys, render, verifier):
         approval = mk_approval(keys, render)
         old = (datetime.now(UTC) - timedelta(seconds=600)).isoformat()
-        stale = approval.model_copy(update={"signed_at": old})
-        # re-sign with the stale timestamp so only the freshness check fails
-        stale = approval.model_copy(update={"signed_at": old})
+        stale = approval.model_copy(update={"signed_at": old, "signature_b64": ""})
+        stale = stale.model_copy(
+            update={"signature_b64": sign_approval(stale, keys["owner"])}
+        )
         with pytest.raises(ApprovalError, match="expired"):
             verifier.verify(stale, render)
 
@@ -110,15 +111,16 @@ class TestModifiedAfterSign:
 class TestWrongSigner:
     def test_unsigned_by_attacker_key_rejected(self, keys, render, verifier):
         h = deal_hash(render)
-        forged = base64.b64encode(keys["attacker"].sign(h.encode())).decode()
         approval = SignedApproval(
             deal_hash=h,
             approver_id="owner",  # claims the owner, signs with attacker key
             method="webauthn_passkey",
-            signature_b64=forged,
+            signature_b64="",
             signed_at=datetime.now(UTC).isoformat(),
             nonce="n2",
         )
+        forged = sign_approval(approval, keys["attacker"])
+        approval = approval.model_copy(update={"signature_b64": forged})
         with pytest.raises(ApprovalError, match="signature invalid"):
             verifier.verify(approval, render)
 

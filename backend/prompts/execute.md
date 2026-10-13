@@ -22,8 +22,8 @@ touch `act` tools, and it is not LLM-callable anywhere.
 The node stores the result as a `Receipt` (`app/graph/state.py`) in
 `state.receipt`: `receipt_id`, `deal_id`, `payout_ref`, payout `amount`
 (integer `Money`), `anchored_hash` / `anchor_tx` and `executed_at`. The
-idempotency key (Redis) makes replays return the original receipt instead of
-double-paying. Missing approval, mismatched `deal_hash`, an open `block`
+idempotency store blocks duplicate approved-state submissions. Missing
+approval, mismatched `deal_hash`, an open `block`
 finding or a policy `deny` must abort before any tool call (fail closed).
 
 # Untrusted data rule

@@ -182,10 +182,20 @@ def merge_flags(existing: list[Flag], new: list[Flag]) -> list[Flag]:
     return sorted(merged.values(), key=key)
 
 
+def merge_doc_refs(existing: list[DocRef], new: list[DocRef]) -> list[DocRef]:
+    merged = {d.doc_id: d for d in existing}
+    merged.update({d.doc_id: d for d in new})
+    return sorted(merged.values(), key=lambda d: d.doc_id)
+
+
 def merge_last_wins(existing: str | None, new: str | None) -> str | None:
     """Reducer for scalar operational fields written by parallel branches:
     last write wins (a failure is a failure)."""
     return new if new is not None else existing
+
+
+def merge_model_uses(existing: list[ModelUse], new: list[ModelUse]) -> list[ModelUse]:
+    return [*existing, *new]
 
 
 # --------------------------------------------------------------------------
@@ -300,6 +310,7 @@ class ModelUse(BaseModel):
     completion_tokens: int
     cost_minor: int = 0  # USD minor units, from LiteLLM usage data
     degraded: bool = False  # served by a fallback deployment
+    prompt_version: str = ""
 
 
 # --------------------------------------------------------------------------
@@ -312,7 +323,7 @@ class DealState(BaseModel):
 
     deal_id: str
     tenant_id: str
-    documents: list[DocRef] = []
+    documents: Annotated[list[DocRef], merge_doc_refs] = []
     extracted: Annotated[list[ExtractedDoc], merge_by_doc_hash] = []
     injection_flags: Annotated[list[Flag], merge_flags] = []
     check_plan: CheckPlan | None = None
@@ -326,7 +337,8 @@ class DealState(BaseModel):
     policy: PolicyDecision | None = None
     approval: SignedApproval | None = None
     receipt: Receipt | None = None
-    served_by: list[ModelUse] = []
+    report_summary: str | None = None
+    served_by: Annotated[list[ModelUse], merge_model_uses] = []
     # operational field: set by the node hooks on any failure; routers check it
     # first and route to escalate (fail closed). Never set by node code itself.
     # Reducer: parallel branches (compliance|fx|cashflow) may fail in the same

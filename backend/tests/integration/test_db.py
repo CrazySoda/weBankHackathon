@@ -6,14 +6,17 @@ These are the plan's M1 "done when" tests:
 - a rule superseded on date X is not returned for deals dated after X
 - audit_event is append-only (UPDATE/DELETE revoked)
 
-They require a live Postgres (docker compose up, or TEST_DATABASE_URL) and are
-skipped otherwise — unit tests never depend on services.
+They require TEST_DATABASE_URL to point to a dedicated disposable database
+whose name ends in `test` or `tests`. Several cases run TRUNCATE; these tests
+never fall back to the local demo database. Unit tests do not require services.
 """
 
 from __future__ import annotations
 
 import os
+import re
 from datetime import UTC, date, datetime
+from urllib.parse import urlparse
 
 import pytest
 from app.audit.events import AuditEvent
@@ -24,32 +27,34 @@ from sqlalchemy import create_engine, text
 pytestmark = pytest.mark.integration
 
 DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "")
-PG = pytest.importorskip("psycopg") if not DATABASE_URL else None
+PG = pytest.importorskip("psycopg") if DATABASE_URL else None
 
 
 def _url() -> str:
-    return DATABASE_URL or "postgresql+psycopg://cleartrade:cleartrade@localhost:5432/cleartrade"
+    if not DATABASE_URL:
+        pytest.skip("set TEST_DATABASE_URL to a dedicated disposable test database")
+    normalized_url = DATABASE_URL.replace("+psycopg", "").replace("+asyncpg", "")
+    database_name = urlparse(normalized_url).path.lstrip("/")
+    if re.search(r"(?:^|[_-])tests?$", database_name, flags=re.IGNORECASE) is None:
+        pytest.fail(
+        "TEST_DATABASE_URL must target a database named test/tests or ending in _test/_tests; "
+            "these integration tests truncate tables"
+        )
+    if DATABASE_URL.startswith("postgres://"):
+        return DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+    if DATABASE_URL.startswith("postgresql://"):
+        return DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+    if DATABASE_URL.startswith("postgresql+asyncpg://"):
+        return DATABASE_URL.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
+    return DATABASE_URL
 
 
 @pytest.fixture()
 def pg_engine():
-    if not (DATABASE_URL or _pg_reachable()):
-        pytest.skip("no TEST_DATABASE_URL and local Postgres unreachable")
     eng = create_engine(_url())
     Base.metadata.create_all(eng)
     yield eng
     eng.dispose()
-
-
-def _pg_reachable() -> bool:
-    try:
-        eng = create_engine(_url())
-        with eng.connect():
-            pass
-        eng.dispose()
-        return True
-    except Exception:
-        return False
 
 
 def _set_tenant(conn, tenant: str) -> None:

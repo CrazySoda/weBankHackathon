@@ -98,6 +98,7 @@ class ToolRegistry:
                 AuditEvent(
                     kind=event,
                     deal_id=getattr(args, "deal_id", "") or "",
+                    tenant_id=getattr(args, "tenant_id", "default") or "default",
                     payload={
                         "node": node,
                         "tool": tool_name,
@@ -145,8 +146,8 @@ class ToolRegistry:
             audit(ok=False, error="tool raised ToolError", event="tool_failed")
             raise
         except Exception as e:
-            audit(ok=False, error=repr(e), event="tool_failed")
-            raise ToolError(f"tool {tool_name} failed: {e}") from e
+            audit(ok=False, error=type(e).__name__, event="tool_failed")
+            raise ToolError(f"tool {tool_name} failed ({type(e).__name__})") from e
 
         if not isinstance(out, tool.output_model):
             try:

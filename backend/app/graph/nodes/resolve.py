@@ -29,9 +29,10 @@ async def resolve_exception(state: DealState, ctx: NodeContext) -> dict[str, Any
     if not fixable:
         return {"resolve_attempts": state.resolve_attempts + 1}
 
+    system, version = ctx.system_prompt("resolve_exception", state)
     result = await ctx.llm.complete(
         alias="reasoner",
-        system=(
+        system=system + "\n\n" + (
             "Draft an amendment request to the buyer/applicant that fixes the listed "
             "document discrepancies. Quote the exact correction needed for each. "
             "Text only — you cannot send anything."
@@ -39,14 +40,18 @@ async def resolve_exception(state: DealState, ctx: NodeContext) -> dict[str, Any
         messages=[
             {
                 "role": "user",
-                "content": "\n".join(f"- [{f.rule_id}] {f.summary}" for f in fixable),
+                "content": "<untrusted>\n"
+                + "\n".join(f"- [{f.rule_id}] {f.summary}" for f in fixable)
+                + "\n</untrusted>",
             }
         ],
         output_model=AmendmentDraft,
         node="resolve_exception",
+        prompt_version=version,
     )
     draft = f"{result.output.subject}\n\n{result.output.body}"
-    return {"amendment_draft": draft, "resolve_attempts": state.resolve_attempts + 1}
+    return {"amendment_draft": draft, "resolve_attempts": state.resolve_attempts + 1,
+            "served_by": [result.use]}
 
 
 async def await_corrected_doc(state: DealState, ctx: NodeContext) -> dict[str, Any]:
@@ -63,5 +68,10 @@ async def await_corrected_doc(state: DealState, ctx: NodeContext) -> dict[str, A
             if f.severity == "block" and f.status == "open"
         ],
     }
-    interrupt(payload)
-    return {}
+    resume = interrupt(payload)
+    if not isinstance(resume, dict) or resume.get("action") != "corrected_document":
+        return {"fatal_error": "corrected-document interrupt resumed without a corrected upload"}
+    docs = resume.get("documents")
+    if not isinstance(docs, list) or not docs:
+        return {"fatal_error": "corrected-document resume is missing document references"}
+    return {"documents": docs}

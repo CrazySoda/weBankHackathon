@@ -41,8 +41,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "ok", "env": settings.env, **SYNTHETIC_BADGE}
 
     @app.post("/deals")
-    async def create_deal(tenant_id: str = Form("demo-tenant")) -> dict[str, Any]:
-        rec = runner.create_deal(tenant_id)
+    async def create_deal() -> dict[str, Any]:
+        # Single synthetic tenant in the local demo. Never trust a tenant id
+        # supplied by an unauthenticated caller.
+        rec = runner.create_deal("demo-tenant")
         return {"deal_id": rec.state.deal_id, **SYNTHETIC_BADGE}
 
     @app.post("/deals/{deal_id}/documents")
@@ -57,9 +59,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         mime = file.content_type or "application/octet-stream"
         if mime not in settings.upload_allowed_types:
             raise HTTPException(415, f"file type {mime} not allowed")
-        data = await file.read()
-        if len(data) > settings.upload_max_bytes:
-            raise HTTPException(413, "file too large")
+        chunks: list[bytes] = []
+        total = 0
+        while chunk := await file.read(64 * 1024):
+            total += len(chunk)
+            if total > settings.upload_max_bytes:
+                raise HTTPException(413, "file too large")
+            chunks.append(chunk)
+        data = b"".join(chunks)
+        signatures = {
+            "application/pdf": lambda b: b.startswith(b"%PDF-"),
+            "image/jpeg": lambda b: b.startswith(b"\xff\xd8\xff"),
+            "image/png": lambda b: b.startswith(b"\x89PNG\r\n\x1a\n"),
+        }
+        signature_check = signatures.get(mime)
+        if signature_check is None or not signature_check(data):
+            raise HTTPException(415, "file contents do not match the declared type")
         # malware scan hook point (ClamAV in prod; demo deals are synthetic)
         ref = runner.add_document(deal_id, data, file.filename, mime, kind)
         return {"doc_id": ref.doc_id, "sha256": ref.sha256, **SYNTHETIC_BADGE}
@@ -70,6 +85,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def run_deal(deal_id: str) -> dict[str, Any]:
         if deal_id not in runner.deals:
             raise HTTPException(404, "unknown deal")
+        if runner.deals[deal_id].running:
+            raise HTTPException(409, "deal already running")
         task = asyncio.create_task(runner.run(deal_id))
         background_tasks.add(task)
         task.add_done_callback(background_tasks.discard)
@@ -107,6 +124,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def resume_deal(deal_id: str, payload: ResumeBody) -> dict[str, Any]:
         if deal_id not in runner.deals:
             raise HTTPException(404, "unknown deal")
+        if runner.deals[deal_id].running:
+            raise HTTPException(409, "deal already running")
         task = asyncio.create_task(runner.resume(deal_id, payload.model_dump(exclude_none=True)))
         background_tasks.add(task)
         task.add_done_callback(background_tasks.discard)
@@ -118,7 +137,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(404, "unknown deal")
         return {
             "events": runner.audit_trail(deal_id),
-            "chain_ok": runner.audit.verify_chain("demo-tenant"),
+            "chain_ok": runner.audit.verify_chain(runner.deals[deal_id].state.tenant_id),
             **SYNTHETIC_BADGE,
         }
 

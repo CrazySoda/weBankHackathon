@@ -27,6 +27,7 @@ from app.graph.nodes import (
 )
 from app.graph.routers import (
     after_approval,
+    after_intake,
     after_policy,
     after_screen,
     after_verify,
@@ -61,7 +62,7 @@ def build_graph(ctx: NodeContext, checkpointer: object | None = None) -> Compile
         g.add_node(name, wrap_with_hooks(name, fn, ctx))  # type: ignore[call-overload]
 
     g.add_edge(START, "intake")
-    g.add_conditional_edges("intake", fan_out_docs, ["extract_doc"])
+    g.add_conditional_edges("intake", after_intake, ["extract_doc", "escalate"])
     g.add_edge("extract_doc", "injection_screen")
     g.add_conditional_edges("injection_screen", after_screen, ["plan", "escalate"])
     for b in ("compliance", "fx", "cashflow"):
@@ -71,7 +72,7 @@ def build_graph(ctx: NodeContext, checkpointer: object | None = None) -> Compile
         "verify", after_verify, ["credit_offer", "resolve_exception", "escalate"]
     )
     g.add_edge("resolve_exception", "await_corrected_doc")
-    g.add_conditional_edges("await_corrected_doc", fan_out_docs, ["extract_doc"])
+    g.add_conditional_edges("await_corrected_doc", fan_out_docs, ["extract_doc", "escalate"])
     g.add_edge("credit_offer", "policy_check")
     g.add_conditional_edges("policy_check", after_policy, ["human_approval", "escalate"])
     g.add_conditional_edges("human_approval", after_approval, ["execute", "report"])

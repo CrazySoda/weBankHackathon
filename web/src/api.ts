@@ -289,11 +289,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<{ status: string; env: string }>("/health"),
 
-  createDeal: (tenantId: string) =>
+  createDeal: () =>
     request<{ deal_id: string }>("/deals", {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ tenant_id: tenantId }).toString(),
     }),
 
   uploadDocument: (dealId: string, file: File, kind: DocKind) => {

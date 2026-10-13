@@ -14,9 +14,10 @@ from __future__ import annotations
 
 import base64
 from datetime import UTC, datetime
+from typing import Any
 
 from app.calc.money import canonical_json, sha256_hex
-from app.graph.state import SignedApproval
+from app.graph.state import DealState, SignedApproval
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
@@ -27,13 +28,69 @@ class ApprovalError(Exception):
     """Approval rejected — fail closed, escalate."""
 
 
-def deal_hash(render: dict) -> str:
+def deal_hash(render: dict[str, Any]) -> str:
     """Canonical hash of the approval screen's render dict."""
     return sha256_hex(canonical_json(render))
 
 
-def sign_deal_hash(deal_hash_hex: str, private_key: ed25519.Ed25519PrivateKey) -> str:
-    return base64.b64encode(private_key.sign(deal_hash_hex.encode("utf-8"))).decode("ascii")
+def approval_render(state: DealState) -> dict[str, Any]:
+    """Canonical public approval screen data shared by API and graph."""
+    amount_minor = None
+    for doc in state.extracted:
+        field = doc.get("total_amount") if doc.kind == "commercial_invoice" else None
+        if field is not None:
+            from decimal import Decimal, InvalidOperation
+
+            try:
+                amount_minor = int(
+                    (Decimal(str(field.value).replace(",", "")) * 100).quantize(Decimal(1))
+                )
+            except InvalidOperation:
+                amount_minor = None
+            break
+    return {
+        "deal_id": state.deal_id,
+        "findings": [
+            {"check_id": f.check_id, "rule_id": f.rule_id, "severity": f.severity,
+             "status": f.status, "summary": f.summary, "explanation": f.explanation,
+             "evidence": [e.model_dump(mode="json") for e in f.evidence]}
+            for f in state.findings
+        ],
+        "waivers": [f.model_dump(mode="json") for f in state.findings if f.status == "waived"],
+        "fx_options": [o.model_dump(mode="json") for o in state.fx_options],
+        "finance_offer": (
+            state.finance_offer.model_dump(mode="json") if state.finance_offer else None
+        ),
+        "payee": next(
+            (
+                str(d.get("beneficiary").value)
+                for d in state.extracted
+                if d.kind == "commercial_invoice" and d.get("beneficiary") is not None
+            ),
+            None,
+        ),
+        "amount_minor": amount_minor,
+        "policy": state.policy.model_dump(mode="json") if state.policy else None,
+    }
+
+
+def approval_signature_message(approval: SignedApproval) -> bytes:
+    """Bind the signature to the deal, signer, method, timestamp, and nonce."""
+    return canonical_json(
+        {
+            "deal_hash": approval.deal_hash,
+            "approver_id": approval.approver_id,
+            "method": approval.method,
+            "signed_at": approval.signed_at,
+            "nonce": approval.nonce,
+        }
+    ).encode("utf-8")
+
+
+def sign_approval(
+    approval: SignedApproval, private_key: ed25519.Ed25519PrivateKey
+) -> str:
+    return base64.b64encode(private_key.sign(approval_signature_message(approval))).decode("ascii")
 
 
 class ApprovalVerifier:
@@ -43,26 +100,26 @@ class ApprovalVerifier:
         self.approver_keys = approver_keys
 
     def verify(
-        self, approval: SignedApproval, current_render: dict, now: datetime | None = None
+        self, approval: SignedApproval, current_render: dict[str, Any], now: datetime | None = None
     ) -> None:
         # 1. approver known
         key = self.approver_keys.get(approval.approver_id)
         if key is None:
             raise ApprovalError(f"unknown approver {approval.approver_id!r}")
 
-        # 2. signed the deal hash they claim
-        try:
-            key.verify(
-                base64.b64decode(approval.signature_b64),
-                approval.deal_hash.encode("utf-8"),
-            )
-        except (InvalidSignature, ValueError) as e:
-            raise ApprovalError(f"signature invalid: {e}") from e
-
-        # 3. deal unchanged since signing
+        # 2. current state must match the approval hash
         current = deal_hash(current_render)
         if current != approval.deal_hash:
             raise ApprovalError("deal state changed after signing — approval invalidated")
+
+        # 3. every approval metadata field is signed too
+        try:
+            key.verify(
+                base64.b64decode(approval.signature_b64, validate=True),
+                approval_signature_message(approval),
+            )
+        except (InvalidSignature, ValueError) as e:
+            raise ApprovalError(f"signature invalid: {e}") from e
 
         # 4. freshness (replay window)
         try:
@@ -71,20 +128,27 @@ class ApprovalVerifier:
             raise ApprovalError("signed_at is not ISO 8601") from e
         now = now or datetime.now(UTC)
         age = (now - signed_at).total_seconds()
-        if age > REPLAY_WINDOW_S:
+        if age < 0 or age > REPLAY_WINDOW_S:
             raise ApprovalError(f"approval expired ({age:.0f}s > {REPLAY_WINDOW_S}s)")
 
 
-def verify_approval(approval: SignedApproval, expected_deal_id: str, state_digest: str) -> None:
-    """Graph-side structural check (no keys): the approval must reference this
-    deal and carry a non-empty signature. Cryptographic verification with keys
-    happens in the ApprovalVerifier (API layer, which holds the key registry)."""
+def verify_approval(
+    approval: SignedApproval,
+    expected_deal_id: str,
+    current_render: dict[str, Any],
+    verifier: ApprovalVerifier | None = None,
+) -> None:
+    """Verify the signature and exact approval-screen representation."""
     if not approval.signature_b64:
         raise ApprovalError("empty signature")
     if not approval.deal_hash:
         raise ApprovalError("empty deal hash")
     if not approval.approver_id:
         raise ApprovalError("no approver")
-    # state digest is stored in the nonce position check: nonce must be present
     if not approval.nonce:
         raise ApprovalError("missing nonce (idempotency key)")
+    if current_render.get("deal_id") != expected_deal_id:
+        raise ApprovalError("current approval render references a different deal")
+    if verifier is None:
+        raise ApprovalError("approval verifier is not configured")
+    verifier.verify(approval, current_render)
