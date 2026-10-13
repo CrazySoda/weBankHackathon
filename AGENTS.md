@@ -41,6 +41,9 @@ evals/promptfoo/      red-team suite (OWASP ASI01–ASI10 cases)
 
 ## Workflow
 
+- **Everything through uv.** Deps, scripts, tests, one-off commands —
+  `uv run ...` / `uvx ...`, never bare `python`/`pip`. The hash-locked
+  `uv.lock` only protects runs inside uv.
 - Quality gates before you claim anything works:
   `cd backend && uv run pytest tests -q && uv run ruff check app tests && uv run mypy`
   `calc/` additionally enforces `--cov-fail-under=100`.

@@ -15,6 +15,7 @@ Behaviour:
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from typing import Any, Protocol, TypeVar
 
@@ -24,15 +25,34 @@ from app.graph.state import ModelUse
 
 T = TypeVar("T", bound=BaseModel)
 
-# Alias -> deployments considered "primary" for degraded-call detection.
-# Matches litellm/config.yaml: only these models satisfy safety-critical calls.
-PRIMARY_DEPLOYMENTS: dict[str, frozenset[str]] = {
+# Alias -> deployments considered "primary" for degraded-call detection, per
+# the DEFAULT model catalogue (matches the litellm renderer's defaults).
+# When LLM_REASONER_MODEL / LLM_FAST_MODEL override the selection, the override
+# model is added at runtime (see primary_models) so a deliberate provider/model
+# switch does not mark every call degraded.
+DEFAULT_PRIMARY_DEPLOYMENTS: dict[str, frozenset[str]] = {
     "reasoner": frozenset({"anthropic/claude-sonnet-5-5", "claude-sonnet-5-5"}),
     "reasoner-backup": frozenset({"anthropic/claude-sonnet-5-5", "claude-sonnet-5-5"}),
     "fast": frozenset({"anthropic/claude-haiku-5-5", "claude-haiku-5-5"}),
     "fast-backup": frozenset({"anthropic/claude-haiku-5-5", "claude-haiku-5-5"}),
     "reasoner-alt": frozenset({"anthropic/claude-haiku-5-5", "claude-haiku-5-5"}),
 }
+
+
+def primary_models(alias: str) -> frozenset[str] | None:
+    """Deployments that satisfy this alias without being 'degraded'.
+
+    Honours LLM_REASONER_MODEL / LLM_FAST_MODEL overrides (both prefixed and
+    bare forms accepted, since proxies report the model id differently).
+    """
+    models: set[str] = set(DEFAULT_PRIMARY_DEPLOYMENTS.get(alias, frozenset()))
+    env_name = "LLM_REASONER_MODEL" if alias.startswith("reasoner") else "LLM_FAST_MODEL"
+    override = os.environ.get(env_name, "").strip()
+    if override:
+        models.add(override)
+        models.add(override.split("/", 1)[-1])
+    return frozenset(models) if models else None
+
 
 REPAIR_INSTRUCTION = (
     "Your previous reply was not valid against the required JSON schema. "
@@ -187,7 +207,7 @@ def _try_parse[T: BaseModel](raw: str, model: type[T]) -> tuple[T | None, str]:
 
 
 def _is_degraded(alias: str, served: str) -> bool:
-    primary = PRIMARY_DEPLOYMENTS.get(alias)
+    primary = primary_models(alias)
     if primary is None:
         return False
     return served not in primary

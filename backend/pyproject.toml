@@ -72,6 +72,7 @@ ignore = ["N818"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
 "tests/eval/run_eval.py" = ["T201"]
+"app/harness/litellm_render.py" = ["T201"]  # CLI renderer prints to stdout
 "app/tests/**" = ["S101"]
 
 [tool.mypy]

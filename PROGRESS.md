@@ -20,7 +20,7 @@ Updated: 2026-10-13 (third checkpoint — M0–M7 + M9 core complete)
 
 ## Numbers
 
-- **Tests**: 224 passing + 4 skipped (env-gated Postgres integration): unit, graph acceptance, security, API, channels, seeds, skills
+- **Tests**: 242 passing + 4 skipped (env-gated Postgres integration): unit, graph acceptance, security, API, channels, seeds, skills
 - **Gates**: ruff clean, mypy strict 0 issues (35 files), `calc/` at 100% branch coverage
 - **Eval (fake extraction, live graph)**: discrepancy recall **1.0**, false alarms **0.0**,
   workflow completion **1.0**, unauthorised actions **0**, ~55 ms/deal
@@ -58,12 +58,26 @@ Updated: 2026-10-13 (third checkpoint — M0–M7 + M9 core complete)
   (needs an LC amendment, not a corrected doc), SSE forwards the full
   interrupt payload
 
+- **Root Makefile** — `make help`: install / gates / eval / seeds / seeds-verify /
+  render-config / proxy / up / down / reset-demo / web-dev / web-build / clean.
+  `make seeds-verify` diffs against the committed `backend/seed/checksums.sha256`
+  manifest (38 PDFs, byte-identical proven). Covers M10's one-command demo reset.
+- uv everywhere (host tooling): `scripts/start_proxy.sh` renders via
+  `uv run` and launches the proxy via `uvx --from litellm==1.105.0`; all docs
+  use `uv run python …`; .env key-generation snippets go through uv too.
+
 ## Docs
 
 - `README.md` — hub + quick start
 - `WALKTHROUGH.md` — one deal end to end with real commands and expected output
 - `REPRODUCIBILITY.md` — pins, gates, eval reproduction, byte-identical seeds
 - `BUILD_PLAN.md` / `PROGRESS.md` / `DECISIONS.md` / `AGENTS.md`
+
+- Provider/key-pool selection (DECISIONS #13): `LLM_PROVIDER` +
+  `LLM_REASONER_MODEL`/`LLM_FAST_MODEL` + comma-separated
+  `<PROVIDER>_API_KEYS` rendered into the LiteLLM config at startup
+  (one deployment per key, router round-robins and benches failing keys);
+  degraded-call detection is override-aware. 16 renderer tests.
 
 ## Remaining
 
@@ -81,7 +95,7 @@ Updated: 2026-10-13 (third checkpoint — M0–M7 + M9 core complete)
 
 ```bash
 cd backend
-uv run pytest tests -q          # 224 passed, 4 skipped (env-gated)
+uv run pytest tests -q          # 242 passed, 4 skipped (env-gated)
 uv run ruff check app tests     # clean
 uv run mypy                     # strict, 0 issues
 uv run python -m tests.eval.run_eval   # recall 1.0 / FA 0.0 / completion 1.0

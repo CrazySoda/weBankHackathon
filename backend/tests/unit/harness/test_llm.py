@@ -127,3 +127,20 @@ class TestDegradedDetection:
             alias="reasoner", system="s", messages=[], output_model=Out, allow_degraded=False
         )
         assert r.use.degraded is False
+
+    async def test_model_override_promotes_served_to_primary(self, monkeypatch):
+        """A deliberate provider/model switch via env must not mark calls degraded."""
+        monkeypatch.setenv("LLM_REASONER_MODEL", "gemini/gemini-3.5-pro")
+        client = mk([completion('{"answer": 1}', model="gemini/gemini-3.5-pro")])
+        r = await client.complete(
+            alias="reasoner", system="s", messages=[], output_model=Out, allow_degraded=False
+        )
+        assert r.use.degraded is False
+
+    async def test_override_served_bare_form_also_primary(self, monkeypatch):
+        monkeypatch.setenv("LLM_REASONER_MODEL", "gemini/gemini-3.5-pro")
+        client = mk([completion('{"answer": 1}', model="gemini-3.5-pro")])
+        r = await client.complete(
+            alias="reasoner", system="s", messages=[], output_model=Out, allow_degraded=False
+        )
+        assert r.use.degraded is False

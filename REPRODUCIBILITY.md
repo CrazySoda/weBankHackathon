@@ -18,7 +18,7 @@ and artefact in [PROGRESS.md](PROGRESS.md).
 | Cache | `valkey/valkey@sha256:081c2f5c…` (8.1-alpine) | `docker-compose.yml` |
 | LLM gateway | `ghcr.io/berriai/litellm@sha256:60947db0…` (**v1.105.0**; 1.82.7/1.82.8 were malicious and are avoided) | `docker-compose.yml` |
 | Langfuse (optional, profile `obs`) | `langfuse/langfuse@sha256:a343f64e…` (v3) | `docker-compose.yml` |
-| LLM models | `reasoner` = claude-sonnet-5-5, `fast` = claude-haiku-5-5 (via LiteLLM aliases + fallback chain) | `litellm/config.yaml` |
+| LLM models | default `reasoner` = claude-sonnet-5-5, `fast` = claude-haiku-5-5; selectable per environment via `LLM_PROVIDER` (anthropic/openai/google/ollama) + `LLM_REASONER_MODEL`/`LLM_FAST_MODEL` | `.env.example`, `litellm/config.template.yaml` |
 
 Model temperature is **0.0** on every call (`app/harness/llm.py`), so even
 live-model runs are as reproducible as the provider allows. All money/rating
@@ -28,10 +28,11 @@ numbers never touch a model — they come from pure integer functions in
 ## 2. Reproduce the test results
 
 ```bash
-cd backend
-uv sync --frozen          # installs exactly uv.lock, hashes verified
-uv run pytest tests -q    # expect: all passed, 4 skipped (env-gated integration)
+make install && make gates   # lint + mypy strict + tests + 100% calc coverage
+# expect: 242 passed, 4 skipped (env-gated integration)
 ```
+
+Equivalent raw commands:
 
 Expected gates (as recorded in PROGRESS.md):
 
@@ -55,8 +56,7 @@ uv run pytest tests/integration -q       # RLS isolation, append-only audit, tam
 ## 3. Reproduce the evaluation metrics
 
 ```bash
-cd backend
-uv run python -m tests.eval.run_eval
+make eval          # = cd backend && uv run python -m tests.eval.run_eval
 ```
 
 Offline mode (default) injects seed ground-truth extractions into the graph —
@@ -83,19 +83,19 @@ The 38 seed PDFs (30 deal + 8 poisoned) are committed at
 
 ```bash
 cd backend
-python3 -I seed/generate_seed_docs.py          # deals
-python3 -I seed/generate_seed_docs.py --poisoned
+uv run python -I seed/generate_seed_docs.py          # deals
+uv run python -I seed/generate_seed_docs.py --poisoned
 # verify: re-run and diff checksums
 find seed -name '*.pdf' | sort | xargs sha256sum > /tmp/a
-python3 -I seed/generate_seed_docs.py && python3 -I seed/generate_seed_docs.py --poisoned
+uv run python -I seed/generate_seed_docs.py && uv run python -I seed/generate_seed_docs.py --poisoned
 find seed -name '*.pdf' | sort | xargs sha256sum > /tmp/b
 diff /tmp/a /tmp/b                             # empty = identical
 ```
 
 Determinism comes from: fixed content, fixed coordinates/fonts, empty PDF
 metadata and `doc.save(..., no_new_id=True)` (PyMuPDF otherwise mints a random
-PDF `/ID`). CJK lines use the built-in `china-s` font. Always run the script
-with `python -I` (isolated mode) as it reads seed JSON from a data directory.
+PDF `/ID`). CJK lines use the built-in `china-s` font. Always run via `make seeds` / `make seeds-verify`
+(= `uv run python -I`, isolated mode; uv is the only supported runner) as it reads seed JSON from a data directory.
 
 The poisoned documents are verified against the real injection rules: every
 `instruction_phrase`/`hidden_text` attack string matches ≥ 1 regex in
@@ -120,7 +120,38 @@ uv run pytest tests/graph -v
 Security properties (replay, modified-after-sign, wrong signer, double
 submit): `uv run pytest tests/unit/security -v`.
 
-## 6. Full stack
+## 6. Provider selection and key rotation
+
+The proxy config is rendered at startup — it is never committed
+(`litellm/config.yaml` is gitignored; `litellm/config.template.yaml` documents
+the shape):
+
+```bash
+# anthropic default (as tested)
+ANTHROPIC_API_KEYS=key1,key2,key3
+
+# or switch provider + models entirely
+LLM_PROVIDER=google
+LLM_REASONER_MODEL=gemini/gemini-3.5-pro     # optional override
+LLM_FAST_MODEL=gemini/gemini-3.5-flash
+GOOGLE_API_KEYS=gkey-1,gkey-2,gkey-3         # comma-separated rotation pool
+```
+
+The renderer emits **one deployment per key per alias**, so the LiteLLM router
+round-robins keys and benches any key that 429s/503s (`cooldown_time: 30`,
+`allowed_fails: 3`, `num_retries: 2`) before the backend sees an error. Secrets
+never enter the rendered file — only `os.environ/LLM_KEY_<n>` references (the
+compose entrypoint / `scripts/start_proxy.sh` splits the pool into those env
+vars). Reproduce the rendered file:
+
+```bash
+LLM_PROVIDER=google GOOGLE_API_KEYS=g1,g2,g3 make render-config
+```
+
+Degraded-call detection follows the override: safety-critical nodes treat the
+env-selected model as primary (`app/harness/llm.py::primary_models`).
+
+## 7. Full stack
 
 ```bash
 cp .env.example .env    # set LITELLM_MASTER_KEY, ANTHROPIC_API_KEY
@@ -132,7 +163,7 @@ Images are digest-pinned, so the stack is bit-for-bit what was tested once
 Docker Desktop WSL integration is enabled for this distro (see PROGRESS.md
 "Remaining").
 
-## 7. What is intentionally NOT reproducible
+## 8. What is intentionally NOT reproducible
 
 - **Live-model text** (extraction wording, explanations, amendment prose):
   same model + temperature 0 gives near-determinism, but provider-side

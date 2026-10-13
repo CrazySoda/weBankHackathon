@@ -5,6 +5,11 @@ runs it: upload → extract → injection screen → compliance → FX → cash 
 policy → approval → sandbox payout → audit. All commands work offline against
 the committed seed PDFs except step 0.
 
+Prerequisite: [uv](https://docs.astral.sh/uv/) installed — every Python
+invocation in this repo goes through it (no bare `python3`, no manual venvs).
+Most commands below have a `make` wrapper (`make up`, `make eval`,
+`make reset-demo`, … — see `make help`).
+
 Two ways to follow along:
 
 - **A. Scripted mode (no API keys)** — the test suite and the eval runner do
@@ -37,7 +42,8 @@ also be done from the console UI.
 We use seed deal `seed-01` (clean) — the PDFs are already in the repo:
 
 ```bash
-DEAL=$(curl -s -X POST localhost:8000/deals -F tenant_id=demo-tenant | python3 -c 'import sys,json;print(json.load(sys.stdin)["deal_id"])')
+DEAL=$(curl -s -X POST localhost:8000/deals -F tenant_id=demo-tenant \
+  | uv run python -c 'import sys,json;print(json.load(sys.stdin)["deal_id"])')
 
 curl -s -X POST localhost:8000/deals/$DEAL/documents \
   -F kind=letter_of_credit -F file=@backend/seed/deals/pdfs/seed-01/lc.pdf
@@ -84,7 +90,7 @@ A clean deal parks at `human_approval`. The stream shows an `interrupt`
 event; `GET /deals/$DEAL` now carries everything the approver sees:
 
 ```bash
-curl -s localhost:8000/deals/$DEAL | python3 -m json.tool
+curl -s localhost:8000/deals/$DEAL | uv run python -m json.tool
 # state.policy.decision        -> "allow"
 # state.fx_options             -> 3 routes, best first (net CNY)
 # state.cash_projection        -> 91 balances, min_balance_day, days_below_zero
@@ -147,7 +153,7 @@ rule 0.6).
 ## 5. The audit trail
 
 ```bash
-curl -s localhost:8000/deals/$DEAL/audit | python3 -m json.tool
+curl -s localhost:8000/deals/$DEAL/audit | uv run python -m json.tool
 # {"events": [...], "chain_ok": true}
 ```
 

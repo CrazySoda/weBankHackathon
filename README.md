@@ -36,13 +36,34 @@ untrusted data everywhere. Approval is an ed25519 signature over a canonical
 hash of exactly what the approval screen rendered; execution is idempotent and
 sandbox-only.
 
+## Tooling: [uv](https://docs.astral.sh/uv/) + one Makefile
+
+**`make help` lists every target.** Common ones:
+
+| Command | What it does |
+|---|---|
+| `make install` | backend deps from hash-locked `uv.lock` + web deps |
+| `make gates` | everything CI checks: lint + mypy strict + tests + 100% calc coverage |
+| `make eval` | the seed-suite metrics table (offline, deterministic) |
+| `make seeds` / `make seeds-verify` | regenerate synthetic PDFs / prove byte-identical |
+| `make render-config` / `make proxy` | render LiteLLM config from env / run the proxy via uvx |
+| `make up` / `make down` / `make reset-demo` | docker stack lifecycle + full demo wipe |
+
+uv is the only supported Python runner (never bare `python`/`pip` — the
+hash-locked `uv.lock` only protects runs inside uv); the Makefile wraps it.
+`backend/Dockerfile` installs uv in the image; `scripts/start_proxy.sh` uses
+`uv run` / `uvx --from litellm==1.105.0`. Node/npm is used only for the web
+console. Equivalent raw commands are shown in
+[REPRODUCIBILITY.md](REPRODUCIBILITY.md).
+
 ## Quick start
 
 ```bash
 # 0. enable Docker Desktop WSL integration for this distro (WSL2), then:
-cp .env.example .env          # fill in LITELLM_MASTER_KEY + ANTHROPIC_API_KEY
-docker compose up --build     # postgres+pgvector, valkey, litellm, backend, web
-# backend :8000 · web console :5173 · LiteLLM proxy :4000
+cp .env.example .env     # fill in keys (see comments; LLM_PROVIDER + *_API_KEYS)
+make up                  # postgres+pgvector, valkey, litellm, backend, web
+# web console :5173 · api :8000/health · LiteLLM proxy :4000
+make reset-demo          # anytime: wipe back to a clean demo
 ```
 
 Then follow **[WALKTHROUGH.md](WALKTHROUGH.md)**.
@@ -53,11 +74,9 @@ The unit, graph, API, security, channels and seed suites run entirely offline
 (scripted models, in-memory stores, committed seed PDFs):
 
 ```bash
-cd backend
-uv sync --frozen                     # hash-locked install
-uv run pytest tests -q               # 224 passed, 4 skipped (env-gated integration)
-uv run python -m tests.eval.run_eval # metrics: recall 1.0 / FA 0.0 / completion 1.0
-uv run mypy && uv run ruff check app tests
+make install   # = uv sync --frozen + npm install
+make gates     # lint + mypy strict + 242 tests + 100% branch coverage on calc/
+make eval      # metrics: recall 1.0 / false alarms 0.0 / completion 1.0
 ```
 
 ## Repository layout

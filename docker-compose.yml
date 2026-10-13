@@ -36,17 +36,40 @@ services:
   litellm:
     image: ghcr.io/berriai/litellm@sha256:60947db020b57e204823d3fbc8bb295c85be890d7c9adcc77fb4f5fc2fe410b2 # v1.105.0
     # NOTE: image versions 1.82.7 and 1.82.8 were malicious — do not unpinned-float.
-    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    # Startup: split the comma-separated key pool into LLM_KEY_<n> (secrets stay
+    # in env only), render config from env, then exec the proxy.
+    entrypoint: []
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        i=1
+        for k in $$(printf '%s' "$$LLM_API_KEYS" | tr ',' ' '); do
+          export LLM_KEY_$$i="$$k"
+          i=$$((i+1))
+        done
+        export LLM_KEY_COUNT=$$((i-1))
+        python /render/litellm_render.py > /tmp/config.yaml
+        echo "rendered litellm config: provider=$${LLM_PROVIDER:-anthropic} keys=$${LLM_KEY_COUNT}"
+        exec litellm --config /tmp/config.yaml --port 4000
     ports:
       - "127.0.0.1:4000:4000"
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set in .env}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set in .env}
       LITELLM_DB_URL: ${LITELLM_DB_URL:-sqlite:///tmp/litellm.db}
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      LLM_REASONER_MODEL: ${LLM_REASONER_MODEL:-}
+      LLM_FAST_MODEL: ${LLM_FAST_MODEL:-}
+      # the renderer picks the right pool for the selected provider
+      LLM_API_KEYS: ${ANTHROPIC_API_KEYS:-${OPENAI_API_KEYS:-${GOOGLE_API_KEYS:-}}}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
     volumes:
-      - ./litellm/config.yaml:/app/config.yaml:ro
+      - ./backend/app/harness/litellm_render.py:/render/litellm_render.py:ro
     # Admin UI not exposed; only the API port above, localhost-only.
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:4000/health/liveliness || exit 1"]

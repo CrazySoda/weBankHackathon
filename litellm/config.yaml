@@ -1,45 +1,18 @@
-# LiteLLM proxy config.
-#
-# SECURITY NOTES
-# - Pin the LiteLLM image by digest in docker-compose.yml.
-#   Versions 1.82.7 and 1.82.8 were malicious; we pin v1.105.0 (reviewed, patched).
-# - Provider keys live ONLY here (injected via env), never in backend code/prompts.
-# - The backend authenticates with a *virtual key* carrying a spend cap; the
-#   master key is reserved for admin operations and is never sent to the backend.
-# - The admin UI is not exposed (no port mapping; only the API port on localhost).
+# RENDERED FILE — do not edit by hand.
+# Generated from env by app/harness/litellm_render.py (provider: anthropic).
+# Secrets are never written here: only os.environ/ references.
 
 model_list:
-  # ---------------- reasoner tier ----------------
+  # WARNING: no keys configured for anthropic (ANTHROPIC_API_KEYS unset); deployment relies on the ambient credential.
   - model_name: reasoner
     litellm_params:
       model: anthropic/claude-sonnet-5-5
-      api_key: os.environ/ANTHROPIC_API_KEY
       max_tokens: 4096
       timeout: 30
-  - model_name: reasoner-backup
-    litellm_params:
-      model: anthropic/claude-sonnet-5-5
-      api_key: os.environ/ANTHROPIC_API_KEY
-      max_tokens: 4096
-      timeout: 30
-  - model_name: reasoner-alt
-    litellm_params:
-      model: anthropic/claude-haiku-5-5
-      api_key: os.environ/ANTHROPIC_API_KEY
-      max_tokens: 4096
-      timeout: 30
-
-  # ---------------- fast tier ----------------
+  # WARNING: no keys configured for anthropic (ANTHROPIC_API_KEYS unset); deployment relies on the ambient credential.
   - model_name: fast
     litellm_params:
       model: anthropic/claude-haiku-5-5
-      api_key: os.environ/ANTHROPIC_API_KEY
-      max_tokens: 2048
-      timeout: 30
-  - model_name: fast-backup
-    litellm_params:
-      model: anthropic/claude-haiku-5-5
-      api_key: os.environ/ANTHROPIC_API_KEY
       max_tokens: 2048
       timeout: 30
 
@@ -47,22 +20,16 @@ router_settings:
   num_retries: 2
   timeout: 30
   allowed_fails: 3
-  cooldown_time: 30          # seconds a deployment is benched after failures
+  cooldown_time: 30
   fallbacks:
-    - reasoner: [reasoner-backup, reasoner-alt]
-    - fast: [fast-backup]
-  context_window_fallbacks:
-    - reasoner: [reasoner-alt]
+    - reasoner: [fast]
 
 litellm_settings:
   drop_params: true
   request_timeout: 30
-  # Every call is traced; traces carry prompt version + deal_id metadata set by the caller.
-  callbacks: ["langfuse"]
-  # Guardrail placeholder: prompt-injection heuristics run in-app (injection_screen node),
-  # provider-side moderation intentionally not relied upon.
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
-  database_url: os.environ/LITELLM_DB_URL   # sqlite is fine for the demo; postgres in prod
-  # Admin UI deliberately not exposed in compose (no public port for /ui).
+  database_url: os.environ/LITELLM_DB_URL
+
+# 2 deployment(s) rendered; provider=anthropic

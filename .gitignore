@@ -27,6 +27,10 @@ data/
 uploads/
 langfuse/
 
+# Rendered from litellm/config.template.yaml by the proxy entrypoint — never
+# commit: contains only env references, but is environment-specific anyway
+litellm/config.yaml
+
 # OS
 .DS_Store
 Thumbs.db
