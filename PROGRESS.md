@@ -20,7 +20,7 @@ Updated: 2026-10-13 (third checkpoint — M0–M7 + M9 core complete)
 
 ## Numbers
 
-- **Tests**: 220+ passing (unit, graph acceptance, security, API, channels, seeds, skills), 4 skipped (env-gated integration)
+- **Tests**: 224 passing + 4 skipped (env-gated Postgres integration): unit, graph acceptance, security, API, channels, seeds, skills
 - **Gates**: ruff clean, mypy strict 0 issues (35 files), `calc/` at 100% branch coverage
 - **Eval (fake extraction, live graph)**: discrepancy recall **1.0**, false alarms **0.0**,
   workflow completion **1.0**, unauthorised actions **0**, ~55 ms/deal
@@ -58,6 +58,13 @@ Updated: 2026-10-13 (third checkpoint — M0–M7 + M9 core complete)
   (needs an LC amendment, not a corrected doc), SSE forwards the full
   interrupt payload
 
+## Docs
+
+- `README.md` — hub + quick start
+- `WALKTHROUGH.md` — one deal end to end with real commands and expected output
+- `REPRODUCIBILITY.md` — pins, gates, eval reproduction, byte-identical seeds
+- `BUILD_PLAN.md` / `PROGRESS.md` / `DECISIONS.md` / `AGENTS.md`
+
 ## Remaining
 
 1. **Live-infrastructure pass**: enable Docker Desktop WSL integration →
@@ -74,7 +81,7 @@ Updated: 2026-10-13 (third checkpoint — M0–M7 + M9 core complete)
 
 ```bash
 cd backend
-uv run pytest tests -q          # 220+ passed, 4 skipped (env-gated)
+uv run pytest tests -q          # 224 passed, 4 skipped (env-gated)
 uv run ruff check app tests     # clean
 uv run mypy                     # strict, 0 issues
 uv run python -m tests.eval.run_eval   # recall 1.0 / FA 0.0 / completion 1.0
