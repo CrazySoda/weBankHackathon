@@ -54,6 +54,24 @@ class TestResolve:
         _, _, _, keys = resolve({"LLM_PROVIDER": "ollama"})
         assert keys == []
 
+    def test_deepseek_provider(self):
+        provider, reasoner, fast, keys = resolve(
+            {"LLM_PROVIDER": "deepseek", "DEEPSEEK_API_KEY": "ds-key"}
+        )
+        assert provider == "deepseek"
+        assert reasoner == "deepseek/deepseek-chat"
+        assert fast == "deepseek/deepseek-chat"
+        assert keys == ["__ENV__:DEEPSEEK_API_KEY"]
+
+    def test_dashscope_provider(self):
+        provider, reasoner, fast, keys = resolve(
+            {"LLM_PROVIDER": "dashscope", "DASHSCOPE_API_KEYS": "q1, q2"}
+        )
+        assert provider == "dashscope"
+        assert reasoner == "dashscope/qwen-plus"
+        assert fast == "dashscope/qwen-turbo"
+        assert keys == ["q1", "q2"]
+
     def test_unknown_provider_rejected(self):
         with pytest.raises(ValueError, match="LLM_PROVIDER"):
             resolve({"LLM_PROVIDER": "palm"})
