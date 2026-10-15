@@ -12,6 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from app.graph.check_inputs import lc_check_inputs
 from app.graph.state import DealState, Finding, ModelUse
 from app.harness.document_parsing import full_text, parse_pdf_spans
 from app.harness.hooks import NodeContext
@@ -45,15 +46,7 @@ class SourceOutput(BaseModel):
 
 def _recompute_check_ids(state: DealState) -> set[str]:
     """Which finding rule-ids reproduce under the deterministic battery."""
-
-    def fields(kind: str) -> dict[str, object]:
-        for d in state.extracted:
-            if d.kind == kind:
-                return {f.name: f.value for f in d.fields}
-        return {}
-
-    lc = fields("letter_of_credit")
-    inv = fields("commercial_invoice")
+    lc, inv = lc_check_inputs(state)
     return {d.rule_id for d in run_lc_checks(lc, inv)}
 
 

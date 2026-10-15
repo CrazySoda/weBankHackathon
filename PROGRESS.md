@@ -88,7 +88,8 @@ Updated: 2026-10-15 (baseline re-verified green: pytest 0 failures + 4 env-gated
   assumptions; conflicting filing deadline recorded as unresolved.
 - `backend/seed/lifecycle/`: four synthetic end-to-end documentary-LC deals (71 PDFs,
   ground truth, timelines, per-role visibility). See its README.
-- New deterministic checks `lc-late-shipment`, `ucp-late-presentation`; new
+- New deterministic checks `lc-late-shipment`, `ucp-late-presentation` (the latter now fed
+  by a `presentation_schedule` document kind end to end, with a graph test); new
   `calc.import_tax_stack_bdt` (100% branch coverage kept).
 
 ## Remaining

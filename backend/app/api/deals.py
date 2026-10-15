@@ -17,6 +17,7 @@ from app.audit.anchor import MockAnchor
 from app.audit.events import GENESIS, AuditEvent, AuditSink
 from app.config import Settings
 from app.graph.build import build_graph
+from app.graph.nodes.extract_doc import ALLOWED_KINDS as ALLOWED_DOC_KINDS
 from app.graph.state import DealState, DocRef, new_id
 from app.harness.budget import DealBudget
 from app.harness.hooks import NodeContext
@@ -144,9 +145,7 @@ class DealRunner:
             filename=filename,
             mime=mime,
             size_bytes=len(data),
-            kind=kind
-            if kind in {"letter_of_credit", "commercial_invoice", "packing_list", "bill_of_lading"}
-            else "unknown",
+            kind=kind if kind in ALLOWED_DOC_KINDS else "unknown",
         )
         rec.state.documents.append(ref)
         self.audit.emit(

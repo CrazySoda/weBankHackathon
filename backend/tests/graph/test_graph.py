@@ -266,3 +266,62 @@ class TestApprovalRejected:
         )
         assert final.get("receipt") is None
         assert final.get("escalation_reason") is None  # rejection is not an escalation
+
+
+def _with_schedule(presentation_date: str):
+    """Extraction hook that also understands a bank presentation schedule."""
+
+    def hook(messages):
+        if "presentation_schedule" in messages[-1]["content"]:
+            return _ExtractionOutput(
+                kind="presentation_schedule",
+                fields=[
+                    FieldOut(
+                        name="presentation_date", value=presentation_date, confidence=0.99,
+                        snippet=f"presentation_date: {presentation_date}", page=1,
+                    ),
+                ],
+            )
+        return extraction_for_hint(messages)
+
+    return hook
+
+
+def _three_docs(deal_id: str, docs_store, presentation_date: str):
+    sha_lc = docs_store.put(make_pdf(["LETTER OF CREDIT USD 100,000.00"]))
+    sha_inv = docs_store.put(make_pdf(["COMMERCIAL INVOICE USD 100,000.00"]))
+    sha_sched = docs_store.put(make_pdf([f"presentation_date: {presentation_date}"]))
+    return [
+        docref(deal_id, sha_lc, "lc.pdf", kind="letter_of_credit"),
+        docref(deal_id, sha_inv, "inv.pdf", kind="commercial_invoice"),
+        docref(deal_id, sha_sched, "sched.pdf", kind="presentation_schedule"),
+    ]
+
+
+class TestPresentationSchedule:
+    """Gap 1: the bank's presentation date must reach the deterministic battery."""
+
+    async def test_late_presentation_is_caught_and_escalates(self, graph, fake_llm, docs_store):
+        fake_llm.hooks["ExtractionOutput"] = _with_schedule("2026-11-30")  # 29 days after 11-01
+        state = DealState(
+            deal_id="d8", tenant_id="t1",
+            documents=_three_docs("d8", docs_store, "2026-11-30"),
+        )
+        result = await graph.ainvoke(state, config={"configurable": {"thread_id": "late-pres"}})
+        assert any(
+            f.rule_id == "ucp-late-presentation" and f.status == "open"
+            for f in result["findings"]
+        ), "late presentation must stay an open finding, not be closed by verify"
+        assert "21 days" in result["escalation_reason"]
+        assert result.get("receipt") is None
+
+    async def test_on_time_presentation_reaches_approval(self, graph, fake_llm, docs_store):
+        fake_llm.hooks["ExtractionOutput"] = _with_schedule("2026-11-09")  # day 8
+        state = DealState(
+            deal_id="d9", tenant_id="t1",
+            documents=_three_docs("d9", docs_store, "2026-11-09"),
+        )
+        result = await graph.ainvoke(state, config={"configurable": {"thread_id": "ok-pres"}})
+        interrupts = extract_interrupts(result)
+        assert len(interrupts) == 1 and interrupts[0].value["kind"] == "human_approval"
+        assert not any(f.rule_id == "ucp-late-presentation" for f in result["findings"])

@@ -55,9 +55,9 @@ uv run python -I seed/verify_checksums.py       # byte-identical proof
 
 ## Known gaps
 
-- The graph's `compliance` node runs the presentation-period check only when a
-  `presentation_date` is on the invoice fields; the presentation schedule is not yet
-  an extracted document kind. The ground truth composes it (`check_inputs_*`).
+- (Closed) The bank's presentation schedule is now an extracted document kind
+  (`presentation_schedule`); `compliance` and `verify` build the battery inputs from
+  one shared function, so the 21-day presentation check runs in the real graph.
 - Buyer, bank and seller roles exist in the data but not yet in the application
   (single-tenant demo). Role-based upload and release views are future work.
 - Unverified rules (all of them, so far) are listed by `unverified_rule_ids()`.
