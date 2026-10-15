@@ -37,7 +37,7 @@ def _url() -> str:
     database_name = urlparse(normalized_url).path.lstrip("/")
     if re.search(r"(?:^|[_-])tests?$", database_name, flags=re.IGNORECASE) is None:
         pytest.fail(
-        "TEST_DATABASE_URL must target a database named test/tests or ending in _test/_tests; "
+            "TEST_DATABASE_URL must target a database named test/tests or ending in _test/_tests; "
             "these integration tests truncate tables"
         )
     if DATABASE_URL.startswith("postgres://"):

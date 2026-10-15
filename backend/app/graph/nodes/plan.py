@@ -72,8 +72,12 @@ async def plan(state: DealState, ctx: NodeContext) -> dict[str, Any]:
     # The model may recommend skills, but cannot suppress required checks.
     chosen = _validate_skills(result.output.chosen_skills)
     required = {
-        "lc-ucp600-check", "bd-import-docs", "cn-export-vat-refund",
-        "hs-classification", "sanctions-screening", "explain-for-sme",
+        "lc-ucp600-check",
+        "bd-import-docs",
+        "cn-export-vat-refund",
+        "hs-classification",
+        "sanctions-screening",
+        "explain-for-sme",
         "amendment-drafting",
     }
     kinds = {d.kind for d in state.extracted}
@@ -90,5 +94,5 @@ async def plan(state: DealState, ctx: NodeContext) -> dict[str, Any]:
             chosen_skills=chosen,
             checks=checks,
             rationale=result.output.rationale[:500],
-        )
+        ),
     }

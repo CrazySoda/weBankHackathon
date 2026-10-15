@@ -182,7 +182,12 @@ class LLMClient:
         )
 
     def _record_use(
-        self, node: str, alias: str, served: str, usage: dict[str, Any], degraded: bool,
+        self,
+        node: str,
+        alias: str,
+        served: str,
+        usage: dict[str, Any],
+        degraded: bool,
         prompt_version: str = "",
     ) -> ModelUse:
         use = ModelUse(

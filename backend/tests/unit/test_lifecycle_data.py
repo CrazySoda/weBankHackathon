@@ -280,8 +280,9 @@ class TestCalculatorsAgreeWithDocuments:
         )
         assert bd["bd-vat-standard"].content["vat_bp"] == spec["import_tax"]["vat_bp"]
         assert bd["bd-ait-import"].content["ait_bp"] == spec["import_tax"]["ait_bp"]
-        assert cn["cn-vat-rate-9405-lamps"].content["refund_rate_bp"] == (
-            spec["export_vat_refund"]["refund_rate_bp"]
+        assert (
+            cn["cn-vat-rate-9405-lamps"].content["refund_rate_bp"]
+            == (spec["export_vat_refund"]["refund_rate_bp"])
         )
 
 

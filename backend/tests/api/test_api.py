@@ -37,8 +37,11 @@ LC_FIELDS = [
 ]
 INV_FIELDS = [
     FieldOut(
-        name="total_amount", value="100000.00", confidence=0.99,
-        snippet="USD 100,000.00", page=1,
+        name="total_amount",
+        value="100000.00",
+        confidence=0.99,
+        snippet="USD 100,000.00",
+        page=1,
     ),
     FieldOut(name="currency", value="USD", confidence=0.99, page=1),
     FieldOut(name="beneficiary", value="Shenzhen Sunny Goods Co", confidence=0.98, page=1),
