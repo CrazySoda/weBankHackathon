@@ -75,7 +75,7 @@ def build_graph(ctx: NodeContext, checkpointer: object | None = None) -> Compile
     g.add_conditional_edges("await_corrected_doc", fan_out_docs, ["extract_doc", "escalate"])
     g.add_edge("credit_offer", "policy_check")
     g.add_conditional_edges("policy_check", after_policy, ["human_approval", "escalate"])
-    g.add_conditional_edges("human_approval", after_approval, ["execute", "report"])
+    g.add_conditional_edges("human_approval", after_approval, ["execute", "report", "escalate"])
     g.add_edge("execute", "report")
     g.add_edge("escalate", "report")
     g.add_edge("report", END)

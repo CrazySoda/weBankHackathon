@@ -6,21 +6,27 @@ stream share one event loop (TestClient portals cancel cross-request tasks).
 
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 from typing import Any
 
+import fakeredis
 import httpx
 import pytest
 from app.api.deals import DealRunner
 from app.config import Settings
 from app.graph.nodes.extract_doc import ExtractionOutput, FieldOut
 from app.main import create_app
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519
 
-from tests.graph.conftest import FakeLLM, make_pdf
+from tests.graph.conftest import FakeLLM, make_pdf, sign_for
 
 LC_FIELDS = [
-    FieldOut(name="lc_amount", value="100000.00", confidence=0.99, snippet="x", page=1),
+    FieldOut(
+        name="lc_amount", value="100000.00", confidence=0.99, snippet="USD 100,000.00", page=1
+    ),
     FieldOut(name="currency", value="USD", confidence=0.99, page=1),
     FieldOut(name="beneficiary", value="Shenzhen Sunny Goods Co", confidence=0.98, page=1),
     FieldOut(name="applicant", value="Dhaka Trading House", confidence=0.98, page=1),
@@ -30,7 +36,10 @@ LC_FIELDS = [
     FieldOut(name="lc_tenor_days", value="60", confidence=0.95, page=1),
 ]
 INV_FIELDS = [
-    FieldOut(name="total_amount", value="100000.00", confidence=0.99, snippet="x", page=1),
+    FieldOut(
+        name="total_amount", value="100000.00", confidence=0.99,
+        snippet="USD 100,000.00", page=1,
+    ),
     FieldOut(name="currency", value="USD", confidence=0.99, page=1),
     FieldOut(name="beneficiary", value="Shenzhen Sunny Goods Co", confidence=0.98, page=1),
     FieldOut(name="goods_description", value="LED lamps L2", confidence=0.97, page=1),
@@ -40,8 +49,20 @@ INV_FIELDS = [
 
 
 @pytest.fixture()
-def app_client(tmp_path: Path) -> tuple[Any, DealRunner]:
-    settings = Settings(litellm_virtual_key="sk-test", approval_signing_key="k")
+def owner_key() -> ed25519.Ed25519PrivateKey:
+    return ed25519.Ed25519PrivateKey.generate()
+
+
+@pytest.fixture()
+def app_client(tmp_path: Path, owner_key) -> tuple[Any, DealRunner]:
+    pub = owner_key.public_key().public_bytes(
+        serialization.Encoding.Raw, serialization.PublicFormat.Raw
+    )
+    settings = Settings(
+        litellm_virtual_key="sk-test",
+        approval_signing_key="k",
+        approval_public_keys_json=json.dumps({"owner": base64.b64encode(pub).decode()}),
+    )
     app = create_app(settings)
     runner: DealRunner = app.state.runner
     fake = FakeLLM()
@@ -56,6 +77,7 @@ def app_client(tmp_path: Path) -> tuple[Any, DealRunner]:
 
     fake.hooks["ExtractionOutput"] = hint
     runner.llm = fake  # type: ignore[assignment]
+    runner.idempotency = fakeredis.FakeRedis(decode_responses=True)
     return app, runner
 
 
@@ -86,7 +108,7 @@ class TestFullFlow:
             assert r.json()["status"] == "ok"
             assert r.json()["synthetic_data"] is True
 
-    async def test_upload_run_stream_resume(self, app_client, tmp_path: Path):
+    async def test_upload_run_stream_resume(self, app_client, tmp_path: Path, owner_key):
         app, _ = app_client
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=60.0
@@ -98,8 +120,8 @@ class TestFullFlow:
 
             # 2. upload LC + invoice
             for name, kind, text in [
-                ("lc.pdf", "letter_of_credit", "LETTER OF CREDIT"),
-                ("inv.pdf", "commercial_invoice", "INVOICE"),
+                ("lc.pdf", "letter_of_credit", "LETTER OF CREDIT USD 100,000.00"),
+                ("inv.pdf", "commercial_invoice", "COMMERCIAL INVOICE USD 100,000.00"),
             ]:
                 r = await client.post(
                     f"/deals/{deal_id}/documents",
@@ -129,14 +151,10 @@ class TestFullFlow:
             assert state["fx_options"]
 
             # 6. resume with approval -> execute -> receipt
-            approval = {
-                "deal_hash": "0" * 64,
-                "approver_id": "owner-1",
-                "method": "webauthn_passkey",
-                "signature_b64": "c2ln",
-                "signed_at": "2026-10-13T00:00:00+00:00",
-                "nonce": "nonce-api-1",
-            }
+            screen = next(
+                p["payload"] for e, p in events if e == "interrupt" and "kind" in p["payload"]
+            )
+            approval = sign_for(screen, owner_key)
             await client.post(
                 f"/deals/{deal_id}/resume",
                 json={"action": "approve", "approval": approval},
@@ -144,6 +162,7 @@ class TestFullFlow:
             events2 = await read_stream(client, deal_id)
             assert events2[-1][0] == "done"
             final = (await client.get(f"/deals/{deal_id}")).json()["state"]
+            assert final["receipt"], (final.get("fatal_error"), final.get("escalation_reason"))
             assert final["receipt"]["payout_ref"].startswith("sandbox-")
 
             # 7. audit trail complete, chain verifies

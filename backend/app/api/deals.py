@@ -13,10 +13,6 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from langgraph.checkpoint.memory import InMemorySaver
-from redis import Redis
-
 from app.audit.anchor import MockAnchor
 from app.audit.events import GENESIS, AuditEvent, AuditSink
 from app.config import Settings
@@ -27,6 +23,9 @@ from app.harness.hooks import NodeContext
 from app.harness.llm import LLMClient
 from app.security.approval import ApprovalVerifier
 from app.security.storage import DocumentStore
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from langgraph.checkpoint.memory import InMemorySaver
+from redis import Redis
 
 
 @dataclass

@@ -124,8 +124,9 @@ class TestValidation:
 
     def test_tool_exception_wrapped_and_audited(self):
         reg = mk_registry()
-        with pytest.raises(ToolError, match="kaboom"):
+        with pytest.raises(ToolError, match="failed") as exc:
             reg.call("compliance", "boom", BoomIn(a=1, b=2))
+        assert "kaboom" not in str(exc.value)  # tool error text is not echoed
         assert "tool_failed" in [e.kind for e, _ in reg.audit_sink.events]
 
     def test_success_audited(self):

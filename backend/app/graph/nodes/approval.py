@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -165,7 +165,7 @@ async def execute(state: DealState, ctx: NodeContext) -> dict[str, Any]:
     ))
     if not isinstance(payout_result, PayoutOutput) or not isinstance(anchor, AnchorOutput):
         return {"fatal_error": "execution tool returned an invalid output"}
-    payout = cast(PayoutOutput, payout_result)
+    payout = payout_result
 
     from app.calc.money import Money
     from app.graph.state import Receipt, new_id

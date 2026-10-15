@@ -1,6 +1,6 @@
 # PROGRESS
 
-Updated: 2026-10-14 (post-review corrections; gates not rerun)
+Updated: 2026-10-15 (baseline re-verified green: pytest 0 failures + 4 env-gated skips, ruff clean, mypy strict clean, calc 100%)
 
 ## Milestone status
 

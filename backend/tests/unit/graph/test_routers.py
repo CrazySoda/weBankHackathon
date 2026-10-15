@@ -2,6 +2,7 @@
 
 from app.graph.routers import (
     after_approval,
+    after_intake,
     after_policy,
     after_screen,
     after_verify,
@@ -68,8 +69,19 @@ class TestFanOutDocs:
         sends = fan_out_docs(s)
         assert [send.arg["pending_doc"]["sha256"] for send in sends] == ["b"]
 
-    def test_no_docs_no_sends(self):
-        assert fan_out_docs(state()) == []
+    def test_no_docs_fails_closed_to_escalate(self):
+        sends = fan_out_docs(state())
+        assert [send.node for send in sends] == ["escalate"]
+
+    def test_after_intake_without_docs_escalates(self):
+        assert after_intake(state()) == "escalate"
+
+    def test_after_intake_fatal_escalates(self):
+        assert after_intake(state(documents=[doc("a")], fatal_error="x")) == "escalate"
+
+    def test_after_intake_fans_out(self):
+        sends = after_intake(state(documents=[doc("a")]))
+        assert [send.node for send in sends] == ["extract_doc"]
 
 
 class TestAfterScreen:
@@ -100,22 +112,41 @@ class TestAfterScreen:
     def test_fatal_escalates(self):
         assert after_screen(state(fatal_error="x")) == "escalate"
 
+    def test_missing_extraction_escalates(self):
+        assert after_screen(state(documents=[doc("a")])) == "escalate"
+
+    def test_low_confidence_field_escalates(self):
+        weak = extracted("a")
+        weak.fields[0] = ExtractedField(
+            name="x", value="1", confidence=0.5, source=SourceRef(page=1)
+        )
+        assert after_screen(state(documents=[doc("a")], extracted=[weak])) == "escalate"
+
+    def test_fully_extracted_goes_to_plan(self):
+        s = state(documents=[doc("a")], extracted=[extracted("a")])
+        assert after_screen(s) == "plan"
+
 
 class TestAfterVerify:
     def test_no_blocks_goes_to_credit(self):
-        s = state(findings=[finding("info", False), finding("warn", True)])
-        assert after_verify(s) == "credit_offer"
+        fs = [finding("info", False), finding("warn", True)]
+        assert after_verify(state(findings=fs, verified=fs)) == "credit_offer"
 
-    def test_fixable_block_goes_to_resolve(self):
-        s = state(findings=[finding("block", fixable=True)])
-        assert after_verify(s) == "resolve_exception"
-
-    def test_unfixable_block_escalates(self):
-        s = state(findings=[finding("block", fixable=False)])
+    def test_unverified_open_finding_escalates(self):
+        s = state(findings=[finding("info", False)])
         assert after_verify(s) == "escalate"
 
+    def test_fixable_block_goes_to_resolve(self):
+        fs = [finding("block", fixable=True)]
+        assert after_verify(state(findings=fs, verified=fs)) == "resolve_exception"
+
+    def test_unfixable_block_escalates(self):
+        fs = [finding("block", fixable=False)]
+        assert after_verify(state(findings=fs, verified=fs)) == "escalate"
+
     def test_second_retry_escalates(self):
-        s = state(resolve_attempts=1, findings=[finding("block", fixable=True)])
+        fs = [finding("block", fixable=True)]
+        s = state(resolve_attempts=1, findings=fs, verified=fs)
         assert after_verify(s) == "escalate"
 
     def test_fatal_escalates_even_without_findings(self):
@@ -159,3 +190,6 @@ class TestAfterApproval:
 
     def test_rejected_reports(self):
         assert after_approval(state()) == "report"
+
+    def test_fatal_escalates(self):
+        assert after_approval(state(fatal_error="approval rejected")) == "escalate"

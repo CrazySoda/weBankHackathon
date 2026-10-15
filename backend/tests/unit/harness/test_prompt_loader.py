@@ -87,5 +87,4 @@ def test_prompt_version_changes_with_content(tmp_path: Path) -> None:
 def test_load_prompt_caches_by_path_and_mtime(tmp_path: Path) -> None:
     (tmp_path / "plan.md").write_text("# Role\nA\n", encoding="utf-8")
     first = load_prompt(tmp_path, "plan")
-    (tmp_path / "plan.md").write_text("# Role\nA\n", encoding="utf-8")
-    assert load_prompt(tmp_path, "plan") is first  # same mtime -> cached object
+    assert load_prompt(tmp_path, "plan") is first  # unchanged file -> cached object
