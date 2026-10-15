@@ -63,3 +63,53 @@ def landed_cost_bdt(inp: LandedCostInput) -> LandedCostResult:
     return LandedCostResult(
         cif=cif, duty=duty, ait=ait, fees_total=fees_total, landed_total=landed_total
     )
+
+
+@dataclass(frozen=True)
+class ImportTaxInput:
+    """Full Bangladesh import tax stack on an assessable value already in BDT."""
+
+    assessable_value: Money
+    cd_bp: int  # customs duty
+    rd_bp: int = 0  # regulatory duty
+    sd_bp: int = 0  # supplementary duty
+    vat_bp: int = 1500  # VAT on (AV + CD + RD + SD)
+    ait_bp: int = 500  # advance income tax on AV
+
+
+@dataclass(frozen=True)
+class ImportTaxResult:
+    customs_duty: Money
+    regulatory_duty: Money
+    supplementary_duty: Money
+    vat: Money
+    ait: Money
+    total_taxes: Money
+
+
+def import_tax_stack_bdt(inp: ImportTaxInput) -> ImportTaxResult:
+    """Order per rule ``bd-import-tax-stack``.
+
+    CD, RD on AV; SD on AV + CD + RD; VAT on AV + CD + RD + SD; AIT on AV.
+    """
+    _require_bdt(inp.assessable_value)
+    if inp.assessable_value.minor < 0:
+        raise ValueError("assessable value must be non-negative")
+    for rate in (inp.cd_bp, inp.rd_bp, inp.sd_bp, inp.vat_bp, inp.ait_bp):
+        if not 0 <= rate <= 10_000:
+            raise ValueError(f"rate out of range: {rate}")
+
+    av = inp.assessable_value
+    cd = av.rate(inp.cd_bp, 10_000)
+    rd = av.rate(inp.rd_bp, 10_000)
+    sd = (av + cd + rd).rate(inp.sd_bp, 10_000)
+    vat = (av + cd + rd + sd).rate(inp.vat_bp, 10_000)
+    ait = av.rate(inp.ait_bp, 10_000)
+    return ImportTaxResult(
+        customs_duty=cd,
+        regulatory_duty=rd,
+        supplementary_duty=sd,
+        vat=vat,
+        ait=ait,
+        total_taxes=cd + rd + sd + vat + ait,
+    )

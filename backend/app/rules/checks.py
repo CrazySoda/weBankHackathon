@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import date
 
 from app.calc.money import Money
 
@@ -22,6 +23,11 @@ F_LC_EXPIRY = "expiry_date"
 F_BENEFICIARY = "beneficiary"
 F_APPLICANT = "applicant"
 F_LC_AMOUNT = "lc_amount"
+F_LATEST_SHIPMENT = "latest_shipment_date"
+F_PRESENTATION = "presentation_date"
+
+# UCP 600 Art. 14(c): presentation within 21 calendar days after shipment
+PRESENTATION_DAYS = 21
 
 
 @dataclass(frozen=True)
@@ -77,7 +83,6 @@ def check_expiry_after_shipment(
 ) -> Discrepancy | None:
     if not shipment_date or not expiry_date:
         return None
-    from datetime import date
 
     def parse(v: str) -> date | None:
         for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%d.%m.%Y", "%Y-%m-%dT%H:%M:%S"):
@@ -102,6 +107,71 @@ def check_expiry_after_shipment(
             "block",
             False,
             f"Shipment {ship} is after LC expiry {exp}",
+        )
+    return None
+
+
+def _parse_date(value: str) -> date | None:
+    from datetime import datetime as dt
+
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%d.%m.%Y", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            return dt.strptime(value.strip()[:19], fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def check_latest_shipment(
+    shipment_date: str | None, latest_shipment: str | None
+) -> Discrepancy | None:
+    """Shipment must not be dated after the credit's latest shipment date.
+
+    Not curable by a corrected document (the bill of lading is a fact); it needs
+    an LC amendment from the applicant, so it escalates instead of looping.
+    """
+    if not shipment_date or not latest_shipment:
+        return None
+    ship, latest = _parse_date(shipment_date), _parse_date(latest_shipment)
+    if ship is None or latest is None:
+        return Discrepancy(
+            "doc-date-unparseable", "warn", False, "Shipment or latest shipment date unparseable"
+        )
+    if ship > latest:
+        return Discrepancy(
+            "lc-late-shipment",
+            "block",
+            False,
+            f"Shipment {ship} is after the LC latest shipment date {latest}",
+        )
+    return None
+
+
+def check_presentation_period(
+    shipment_date: str | None, presentation_date: str | None, expiry_date: str | None
+) -> Discrepancy | None:
+    """UCP 600 Art. 14(c): within 21 calendar days of shipment, never after expiry."""
+    if not shipment_date or not presentation_date:
+        return None
+    ship, pres = _parse_date(shipment_date), _parse_date(presentation_date)
+    if ship is None or pres is None:
+        return Discrepancy(
+            "doc-date-unparseable", "warn", False, "Shipment or presentation date unparseable"
+        )
+    expiry = _parse_date(expiry_date) if expiry_date else None
+    if expiry is not None and pres > expiry:
+        return Discrepancy(
+            "ucp-presentation-after-expiry",
+            "block",
+            False,
+            f"Presentation {pres} is after LC expiry {expiry}",
+        )
+    if (pres - ship).days > PRESENTATION_DAYS:
+        return Discrepancy(
+            "ucp-late-presentation",
+            "block",
+            False,
+            f"Presentation {pres} is more than {PRESENTATION_DAYS} days after shipment {ship}",
         )
     return None
 
@@ -167,6 +237,11 @@ def run_lc_checks(lc: dict[str, object], invoice: dict[str, object]) -> list[Dis
     for check, args in [
         (check_amount_match, (lc_amount, inv_amount)),
         (check_expiry_after_shipment, (invoice.get(F_SHIP_DATE), lc.get(F_LC_EXPIRY))),
+        (check_latest_shipment, (invoice.get(F_SHIP_DATE), lc.get(F_LATEST_SHIPMENT))),
+        (
+            check_presentation_period,
+            (invoice.get(F_SHIP_DATE), invoice.get(F_PRESENTATION), lc.get(F_LC_EXPIRY)),
+        ),
         (check_goods_description, (lc.get(F_GOODS), invoice.get(F_GOODS))),
         (check_quantity, (lc.get(F_QUANTITY), invoice.get(F_QUANTITY))),
         (check_beneficiary, (lc.get(F_BENEFICIARY), invoice.get(F_BENEFICIARY))),
