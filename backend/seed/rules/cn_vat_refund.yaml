@@ -1,0 +1,137 @@
+# China export VAT refund. Rates are per HS code and keyed to the EXPORT DATE
+# on the customs declaration. Primary sources (MOF/STA announcements) were not
+# fetched; secondary advisories are cited and flagged. Conflicts are recorded,
+# not resolved.
+pack: cn_vat_refund
+rules:
+  - rule_id: cn-vat-rebate-tiers
+    jurisdiction: CN
+    topic: vat_refund
+    version: "2020"
+    valid_from: 2020-03-20
+    valid_from_precision: approx
+    source_title: Deloitte China tax newsflash on export VAT refund rate changes
+    source_url: https://www.deloitte.com/content/dam/Deloitte/cn/Documents/tax/tax-newsflash/deloitte-cn-tax-newsflash-bilingual-200318.pdf
+    evidence_level: secondary
+    verified: false
+    summary: Refund rates are set per HS code in tiers of 13%, 9%, 6% and 0%. Check the table in force at the export date.
+    content: {tiers_bp: [1300, 900, 600, 0]}
+
+  - rule_id: cn-vat-rate-basis-export-date
+    jurisdiction: CN
+    topic: vat_refund
+    version: "2020"
+    valid_from: 2020-03-20
+    valid_from_precision: approx
+    source_title: Dezan Shira on export VAT refund rates
+    source_url: https://dezshira.com/library/file/4996/download
+    evidence_level: secondary
+    verified: false
+    summary: The applicable refund rate is the one in force on the export date shown on the customs export declaration, not the contract or invoice date.
+    content: {rate_date: customs_declaration_export_date}
+
+  - rule_id: cn-vat-method-ecr-er
+    jurisdiction: CN
+    topic: vat_refund
+    version: "2020"
+    valid_from: 2020-03-20
+    valid_from_precision: approx
+    source_title: MSA Advisory - export tax refunds in China
+    source_url: https://msadvisory.com/export-tax-refunds-in-china/
+    evidence_level: secondary
+    verified: false
+    summary: Manufacturers generally use exempt-credit-refund (ECR; input VAT offsets domestic output VAT and the excess is refunded); trading companies use exempt-and-refund (ER).
+    content: {manufacturer: ECR, trader: ER}
+
+  - rule_id: cn-vat-input-cap
+    jurisdiction: CN
+    topic: vat_refund
+    version: "2020"
+    valid_from: 2020-03-20
+    valid_from_precision: approx
+    source_title: MSA Advisory - export tax refunds in China
+    source_url: https://msadvisory.com/export-tax-refunds-in-china/
+    evidence_level: secondary
+    verified: false
+    summary: The refund is capped by the input VAT evidenced on special VAT invoices for the exported goods.
+    content: {cap: input_vat}
+
+  - rule_id: cn-vat-claim-window
+    jurisdiction: CN
+    topic: vat_refund
+    version: "conflict"
+    valid_from: 2020-03-20
+    valid_from_precision: approx
+    source_title: MSA Advisory (blog); not corroborated
+    source_url: https://msadvisory.com/export-tax-refunds-in-china/
+    evidence_level: none
+    verified: false
+    summary: "UNRESOLVED. One advisory says claims must be filed within 90 days of customs declaration; other practitioner accounts describe a year-end style deadline. Do not auto-compute a deadline until the STA text is checked."
+    content: {days_after_declaration: null, claimed_by_advisory: 90, status: unresolved}
+
+  - rule_id: cn-fx-verification-abolished
+    jurisdiction: CN
+    topic: vat_refund
+    version: "2012"
+    valid_from: 2012-08-01
+    valid_from_precision: exact
+    source_title: SAFE announcement on goods-trade FX administration reform
+    source_url: https://www.safe.gov.cn/en/2012/0903/1066.html
+    evidence_level: secondary
+    verified: false
+    summary: Export-proceeds verification forms were abolished from 2012-08-01; tax bureaus check refunds against SAFE's export-proceeds data instead. Do not require the old verification form.
+    content: {abolished_form: export_proceeds_verification, effective: "2012-08-01"}
+
+  - rule_id: cn-vat-docs-for-claim
+    jurisdiction: CN
+    topic: vat_refund
+    version: "2020"
+    valid_from: 2020-03-20
+    valid_from_precision: approx
+    source_title: MSA Advisory - export tax refunds in China
+    source_url: https://msadvisory.com/export-tax-refunds-in-china/
+    evidence_level: secondary
+    verified: false
+    summary: A claim needs the customs export declaration, VAT special invoices for inputs, the commercial invoice, and evidence of foreign exchange receipt.
+    content: {required: [customs_declaration, vat_special_invoices, commercial_invoice, fx_receipt_evidence]}
+
+  - rule_id: cn-vat-rate-9405-lamps
+    jurisdiction: CN
+    topic: vat_refund
+    version: "demo"
+    valid_from: 2024-01-01
+    valid_from_precision: approx
+    source_title: DEMO ASSUMPTION - confirm against the current MOF/STA rate table for HS 9405
+    source_url: http://www.chinatax.gov.cn/
+    evidence_level: none
+    verified: false
+    demo_assumption: true
+    summary: "DEMO ASSUMPTION: LED luminaires (HS 9405) refunded at 13%. Not confirmed from a primary table."
+    content: {hs_prefix: "9405", refund_rate_bp: 1300}
+
+  - rule_id: cn-vat-rate-battery
+    jurisdiction: CN
+    topic: vat_refund
+    version: "2026-ann2-phase1"
+    valid_from: 2026-04-01
+    valid_to: 2027-01-01
+    valid_from_precision: exact
+    source_title: Lookuptax - battery export VAT refund changes (Announcement No. 2 of 2026)
+    source_url: https://lookuptax.com/tax-changes/china/battery-export-vat-refund-abolished-2027
+    evidence_level: secondary
+    verified: false
+    summary: Battery products are refunded at 6% for 2026-04-01 to 2026-12-31 (down from 9%). Included to exercise bitemporal lookups.
+    content: {category: batteries, refund_rate_bp: 600}
+
+  - rule_id: cn-vat-rate-battery
+    jurisdiction: CN
+    topic: vat_refund
+    version: "2026-ann2-phase2"
+    valid_from: 2027-01-01
+    valid_from_precision: exact
+    source_title: Lookuptax - battery export VAT refund changes (Announcement No. 2 of 2026)
+    source_url: https://lookuptax.com/tax-changes/china/battery-export-vat-refund-abolished-2027
+    evidence_level: secondary
+    verified: false
+    summary: Battery product export VAT refund abolished from 2027-01-01.
+    content: {category: batteries, refund_rate_bp: 0}
