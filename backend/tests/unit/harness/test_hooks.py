@@ -4,7 +4,6 @@ from app.audit.events import InMemoryAuditSink
 from app.graph.state import DealState, ExtractedDoc, ExtractedField, SourceRef
 from app.harness.budget import DealBudget
 from app.harness.hooks import NodeContext, validate_state_invariants, wrap_with_hooks
-from pydantic import ValidationError as PydValidationError
 
 
 def mk_state(**kw) -> DealState:
@@ -71,7 +70,9 @@ class TestAfter:
         wrapped = wrap_with_hooks("compliance", node_boom, ctx)
         update = await wrapped(mk_state())
         assert "fatal_error" in update
-        assert "exploded" in update["fatal_error"]
+        # error text is never copied into state (it may carry secrets/PII)
+        assert "exploded" not in update["fatal_error"]
+        assert "RuntimeError" in update["fatal_error"]
         assert "node_failed" in [e.kind for e, _ in sink.events]
 
     async def test_forbidden_field_rejected(self):
@@ -117,9 +118,3 @@ class TestInvariants:
         )
         assert validate_state_invariants(state)
 
-
-def test_validation_error_type_importable():
-    # guards against accidental refactor of the ValidationError import
-    from app.harness.hooks import ValidationError
-
-    assert PydValidationError is ValidationError

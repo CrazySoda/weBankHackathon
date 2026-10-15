@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import io
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
+from app.audit.anchor import MockAnchor
 from app.audit.events import InMemoryAuditSink
-from app.graph.state import ModelUse
+from app.graph.state import ModelUse, SignedApproval
 from app.harness.budget import DealBudget
 from app.harness.hooks import NodeContext
 from app.harness.llm import CompletionResult
+from app.security.approval import ApprovalVerifier, deal_hash, sign_approval
 from app.security.storage import DocumentStore
+from cryptography.hazmat.primitives.asymmetric import ed25519
 
 
 class FakeLLM:
@@ -35,6 +39,7 @@ class FakeLLM:
         messages,
         output_model,
         node="",
+        prompt_version="",
         allow_degraded=True,
         temperature=0.0,
         max_tokens=4096,
@@ -43,7 +48,7 @@ class FakeLLM:
         hook = self.hooks.get(output_model.__name__)
         out = hook(messages) if hook is not None else self.responses.get(output_model.__name__)
         if out is None:
-            out = self._default(output_model)
+            out = self._default(output_model, messages)
         if isinstance(out, Exception):
             raise out
         return CompletionResult(
@@ -58,7 +63,7 @@ class FakeLLM:
             raw_text="",
         )
 
-    def _default(self, model: type):
+    def _default(self, model: type, messages=None):
         name = model.__name__
         if name == "ExtractionOutput":
             return model()
@@ -70,7 +75,8 @@ class FakeLLM:
                 rationale="LC present; CN exporter",
             )
         if name == "Explainer":
-            return model(explanations=["explained"] * 20)
+            n = str(messages[-1]["content"]).count("- [") if messages else 0
+            return model(explanations=["explained"] * n)
         if name == "VerifyOutput":
             return model(verdicts=[])
         if name == "AmendmentDraft":
@@ -107,10 +113,35 @@ def fake_llm() -> FakeLLM:
 
 
 @pytest.fixture()
-def ctx(fake_llm: FakeLLM, docs_store: DocumentStore) -> NodeContext:
+def owner_key() -> ed25519.Ed25519PrivateKey:
+    return ed25519.Ed25519PrivateKey.generate()
+
+
+@pytest.fixture()
+def ctx(fake_llm: FakeLLM, docs_store: DocumentStore, owner_key) -> NodeContext:
+    import fakeredis
+
     return NodeContext(
         budget=DealBudget("d1", max_steps=200, max_tokens=10**9, max_cost_minor=10**9),
         audit=InMemoryAuditSink(),
         llm=fake_llm,
         docs=docs_store,
+        redis=fakeredis.FakeRedis(),
+        anchor=MockAnchor(),
+        approval_verifier=ApprovalVerifier({"owner": owner_key.public_key()}),
     )
+
+
+def sign_for(interrupt_value: dict[str, Any], key: ed25519.Ed25519PrivateKey) -> dict[str, Any]:
+    """Sign exactly what the approval screen rendered (the interrupt payload)."""
+    render = {k: v for k, v in interrupt_value.items() if k != "kind"}
+    approval = SignedApproval(
+        deal_hash=deal_hash(render),
+        approver_id="owner",
+        method="webauthn_passkey",
+        signature_b64="",
+        signed_at=datetime.now(UTC).isoformat(),
+        nonce="nonce-1",
+    )
+    approval = approval.model_copy(update={"signature_b64": sign_approval(approval, key)})
+    return approval.model_dump(mode="json")

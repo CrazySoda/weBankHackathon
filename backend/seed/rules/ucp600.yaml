@@ -1,0 +1,122 @@
+# UCP 600 (ICC, in force since 2007-07-01). Article text is paywalled by ICC;
+# rules below paraphrase the operative provisions. evidence_level:
+#   secondary = confirmed by an ICC-hosted or practitioner commentary
+#   none      = standard practitioner knowledge; check against the licensed ICC text
+pack: ucp600
+rules:
+  - rule_id: ucp-art14b-examination-period
+    jurisdiction: INT
+    topic: ucp600
+    version: "2007"
+    valid_from: 2007-07-01
+    valid_from_precision: exact
+    source_title: ICC Forum commentary on UCP 600 Art. 14(b)
+    source_url: https://library.iccwbo.org/iccForum/viewtopic.php?p=588
+    evidence_level: secondary
+    verified: false
+    summary: The issuing or confirming bank has a maximum of five banking days after presentation to examine documents; the period is not shortened by expiry falling after presentation.
+    content: {max_banking_days: 5}
+
+  - rule_id: ucp-art14c-presentation-period
+    jurisdiction: INT
+    topic: ucp600
+    version: "2007"
+    valid_from: 2007-07-01
+    valid_from_precision: exact
+    source_title: ICC DocDex opinion involving a 21-day presentation period
+    source_url: https://library.iccwbo.org/content/tfb/OPINIONS/TA916rev.htm
+    evidence_level: secondary
+    verified: false
+    summary: A presentation including transport documents must be made no later than 21 calendar days after shipment, and never after LC expiry.
+    content: {max_calendar_days_after_shipment: 21}
+
+  - rule_id: ucp-art14d-data-consistency
+    jurisdiction: INT
+    topic: ucp600
+    version: "2007"
+    valid_from: 2007-07-01
+    valid_from_precision: exact
+    source_title: ICC UCP 600 (licensed text)
+    source_url: https://iccwbo.org/news-publications/policies-reports/ucp-600/
+    evidence_level: none
+    verified: false
+    summary: Data in a document need not be identical to the credit, but must not conflict with data in that document, any other stipulated document, or the credit.
+    content: {}
+
+  - rule_id: ucp-art18-commercial-invoice
+    jurisdiction: INT
+    topic: ucp600
+    version: "2007"
+    valid_from: 2007-07-01
+    valid_from_precision: exact
+    source_title: Commentary on UCP 600 articles (Razorpay)
+    source_url: https://razorpay.com/blog/ucp-600-articles-explained-indian-businesses/
+    evidence_level: secondary
+    verified: false
+    summary: The invoice must appear to be issued by the beneficiary, be made out in the applicant's name, be in the credit currency, and its goods description must correspond with the credit. It may not exceed the credit amount.
+    content: {issued_by: beneficiary, made_out_to: applicant, currency: same_as_credit, description: corresponds}
+
+  - rule_id: ucp-art20-bill-of-lading
+    jurisdiction: INT
+    topic: ucp600
+    version: "2007"
+    valid_from: 2007-07-01
+    valid_from_precision: exact
+    source_title: ICC UCP 600 (licensed text)
+    source_url: https://iccwbo.org/news-publications/policies-reports/ucp-600/
+    evidence_level: none
+    verified: false
+    summary: A bill of lading must show the carrier name, shipment on board with a date, and the loading and discharge ports stated in the credit; the full set of originals must be presented.
+    content: {}
+
+  - rule_id: ucp-art28-insurance
+    jurisdiction: INT
+    topic: ucp600
+    version: "2007"
+    valid_from: 2007-07-01
+    valid_from_precision: exact
+    source_title: Commentary on UCP 600 Articles 18 and 28
+    source_url: https://erp.blackboxoperations.com/blog/ucp-600-article-18-and
+    evidence_level: secondary
+    verified: false
+    summary: Insurance cover must be at least 110% of the CIF or CIP value unless the credit says otherwise, and the document must be dated no later than the shipment date.
+    content: {min_cover_percent: 110}
+
+  - rule_id: ucp-art30-tolerance
+    jurisdiction: INT
+    topic: ucp600
+    version: "2007"
+    valid_from: 2007-07-01
+    valid_from_precision: exact
+    source_title: ICC UCP 600 (licensed text)
+    source_url: https://iccwbo.org/news-publications/policies-reports/ucp-600/
+    evidence_level: none
+    verified: false
+    summary: The word 'about' allows a 10% tolerance on amount, quantity or unit price. Where quantity is not stated in packing units and the amount is not exceeded, a 5% quantity tolerance applies.
+    content: {about_percent: 10, quantity_percent: 5}
+
+  - rule_id: ucp-art31-partial-shipments
+    jurisdiction: INT
+    topic: ucp600
+    version: "2007"
+    valid_from: 2007-07-01
+    valid_from_precision: exact
+    source_title: ICC UCP 600 (licensed text)
+    source_url: https://iccwbo.org/news-publications/policies-reports/ucp-600/
+    evidence_level: none
+    verified: false
+    summary: Partial shipments and partial drawings are allowed unless the credit prohibits them.
+    content: {default: allowed}
+
+  - rule_id: ucp-art29-expiry-extension
+    jurisdiction: INT
+    topic: ucp600
+    version: "2007"
+    valid_from: 2007-07-01
+    valid_from_precision: exact
+    source_title: ICC UCP 600 (licensed text)
+    source_url: https://iccwbo.org/news-publications/policies-reports/ucp-600/
+    evidence_level: none
+    verified: false
+    summary: If the expiry date falls on a day the bank is closed for reasons other than force majeure, it is extended to the next banking day; the latest shipment date is not extended.
+    content: {}

@@ -12,11 +12,15 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from app.graph.check_inputs import lc_check_inputs
 from app.graph.state import DealState, Finding, ModelUse
-from app.harness.hooks import NodeContext
-from app.rules.checks import run_lc_checks
 from app.harness.document_parsing import full_text, parse_pdf_spans
+from app.harness.hooks import NodeContext
 from app.harness.tools.registry import Tool, ToolRegistry
+from app.rules.checks import run_lc_checks
+
+# check ids whose findings are pure-calculator outputs (see DECISION in verify())
+CALC_CHECK_IDS = frozenset({"vat-refund"})
 
 
 class Verdict(BaseModel):
@@ -42,15 +46,7 @@ class SourceOutput(BaseModel):
 
 def _recompute_check_ids(state: DealState) -> set[str]:
     """Which finding rule-ids reproduce under the deterministic battery."""
-
-    def fields(kind: str) -> dict[str, object]:
-        for d in state.extracted:
-            if d.kind == kind:
-                return {f.name: f.value for f in d.fields}
-        return {}
-
-    lc = fields("letter_of_credit")
-    inv = fields("commercial_invoice")
+    lc, inv = lc_check_inputs(state)
     return {d.rule_id for d in run_lc_checks(lc, inv)}
 
 
@@ -62,7 +58,8 @@ async def verify(state: DealState, ctx: NodeContext) -> dict[str, Any]:
     model_uses: list[ModelUse] = []
     source_registry = ToolRegistry(audit_sink=ctx.audit)
 
-    def read_source(args: SourceInput) -> SourceOutput:
+    def read_source(raw_args: BaseModel) -> BaseModel:
+        args = SourceInput.model_validate(raw_args)
         doc = next((d for d in state.documents if d.doc_id == args.doc_id), None)
         if doc is None or doc.deal_id != args.deal_id or doc.mime != "application/pdf":
             raise ValueError("source document is missing or unsupported")
@@ -77,6 +74,26 @@ async def verify(state: DealState, ctx: NodeContext) -> dict[str, Any]:
     for f in state.findings:
         if f.status != "open":
             updated.append(f)
+            continue
+        if f.check_id == "lc-consistency" and f.rule_id not in reproducible:
+            # DECISION: a finding the deterministic battery no longer reproduces
+            # (e.g. after a corrected upload) is closed without grounding; its
+            # old evidence quotes legitimately vanish from the replaced document.
+            verdicts.append(
+                Verdict(
+                    check_id=f.check_id,
+                    upheld=False,
+                    reason="not reproducible from source documents",
+                )
+            )
+            updated.append(
+                f.model_copy(
+                    update={
+                        "status": "fixed",
+                        "explanation": "not reproducible after document correction",
+                    }
+                )
+            )
             continue
         sources: list[str] = []
         grounded = bool(f.evidence) and ctx.docs is not None
@@ -135,6 +152,17 @@ async def verify(state: DealState, ctx: NodeContext) -> dict[str, Any]:
                     }
                 )
                 updated.append(resolved)
+            continue
+
+        if f.check_id in CALC_CHECK_IDS:
+            # DECISION: findings whose numbers come from a pure calc/ function are
+            # upheld once their evidence is grounded in the source PDF; a model
+            # never adjudicates (or produces) a calculator result.
+            verdicts.append(
+                Verdict(check_id=f.check_id, upheld=True, reason="deterministic calculator output")
+            )
+            verified.append(f)
+            updated.append(f)
             continue
 
         # non-computable findings: reasoner judges against evidence,

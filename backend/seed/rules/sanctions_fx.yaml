@@ -1,0 +1,58 @@
+# Sanctions screening and FX. List content is synthetic in the demo; only the
+# rule and the official list locations are real.
+pack: sanctions_fx
+rules:
+  - rule_id: sanctions-lists-to-screen
+    jurisdiction: INT
+    topic: sanctions
+    version: "general"
+    valid_from: 2024-01-01
+    valid_from_precision: approx
+    source_title: OFAC sanctions list search; UN Security Council consolidated list
+    source_url: https://sanctionssearch.ofac.treas.gov/
+    evidence_level: secondary
+    verified: false
+    summary: Screen applicant, beneficiary, banks, vessel and ports against OFAC SDN, the UN consolidated list and EU lists. The demo uses a synthetic list only; it must never be presented as a real screening result.
+    content:
+      parties: [applicant, beneficiary, issuing_bank, advising_bank, vessel]
+      lists: [ofac_sdn, un_consolidated, eu_consolidated]
+      demo_list_is_synthetic: true
+
+  - rule_id: sanctions-hit-blocks-payment
+    jurisdiction: INT
+    topic: sanctions
+    version: "general"
+    valid_from: 2024-01-01
+    valid_from_precision: approx
+    source_title: Project policy (BUILD_PLAN section 0 rule 6; Cedar policy sanctions_clear)
+    source_url: https://github.com/
+    evidence_level: none
+    verified: false
+    summary: Any screening hit is a block finding and routes to escalation; there is no waiver path in the demo.
+    content: {severity: block, waivable: false}
+
+  - rule_id: cn-safe-goods-trade-fx
+    jurisdiction: CN
+    topic: fx
+    version: "2012"
+    valid_from: 2012-08-01
+    valid_from_precision: exact
+    source_title: China Briefing - China reforms foreign exchange administration for trade in goods
+    source_url: https://www.china-briefing.com/news/china-reforms-foreign-exchange-administration-in-goods-trade/
+    evidence_level: secondary
+    verified: false
+    summary: Goods-trade FX administration is by registered-enterprise categories and SAFE data monitoring; per-transaction verification forms are no longer required for export declarations.
+    content: {per_transaction_verification: false}
+
+  - rule_id: fx-synthetic-quotes-only
+    jurisdiction: INT
+    topic: fx
+    version: "demo"
+    valid_from: 2024-01-01
+    valid_from_precision: approx
+    source_title: Project policy (BUILD_PLAN section 0 rule 10)
+    source_url: https://github.com/
+    evidence_level: none
+    verified: false
+    summary: All FX quotes in the demo come from the synthetic provider and are labelled synthetic in the UI. Effective cost is computed by calc/, never by a model.
+    content: {synthetic: true}

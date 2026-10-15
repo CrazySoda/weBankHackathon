@@ -19,7 +19,12 @@ from app.calc.finance import FinanceOfferResult
 from app.calc.money import Money
 
 DocKind = Literal[
-    "letter_of_credit", "commercial_invoice", "packing_list", "bill_of_lading", "unknown"
+    "letter_of_credit",
+    "commercial_invoice",
+    "packing_list",
+    "bill_of_lading",
+    "presentation_schedule",
+    "unknown",
 ]
 Severity = Literal["info", "warn", "block"]
 FindingStatus = Literal["open", "fixed", "waived"]

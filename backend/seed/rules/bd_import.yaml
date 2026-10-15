@@ -1,0 +1,139 @@
+# Bangladesh import regime (NBR customs, VAT, AIT; Bangladesh Bank LC practice).
+# Sources found were secondary (advisories, press, practitioner notes). Tariff
+# rates change every Finance Act and by SRO; every rate here is a demo input to
+# be confirmed against the current NBR tariff and SROs before any real use.
+pack: bd_import
+rules:
+  - rule_id: bd-import-tax-stack
+    jurisdiction: BD
+    topic: import_duty
+    version: "2023-acts"
+    valid_from: 2024-01-01
+    valid_from_precision: approx
+    source_title: Practitioner note on Bangladesh import tax calculation (Customs Act 2023, VAT and SD Act 2012, Income Tax Act 2023)
+    source_url: https://rakibhassan.eu/?p=1435
+    evidence_level: secondary
+    verified: false
+    summary: "Import taxes: customs duty (CD), regulatory duty (RD), supplementary duty (SD) on assessable value; VAT on assessable value plus CD, RD and SD; advance income tax (AIT) on assessable value."
+    content:
+      order: [assessable_value, customs_duty, regulatory_duty, supplementary_duty, vat, ait]
+      vat_base: [assessable_value, customs_duty, regulatory_duty, supplementary_duty]
+      ait_base: [assessable_value]
+
+  - rule_id: bd-vat-standard
+    jurisdiction: BD
+    topic: import_duty
+    version: "general"
+    valid_from: 2024-01-01
+    valid_from_precision: approx
+    source_title: DHL - China to Bangladesh shipping guide
+    source_url: https://www.dhl.com/discover/en-bd/e-commerce-advice/shipping-guides-by-country/china-to-bangladesh-shipping
+    evidence_level: secondary
+    verified: false
+    summary: Standard import VAT is generally 15%; reduced or exempt rates apply to some essential goods.
+    content: {vat_bp: 1500}
+
+  - rule_id: bd-ait-import
+    jurisdiction: BD
+    topic: import_duty
+    version: "general"
+    valid_from: 2024-01-01
+    valid_from_precision: approx
+    source_title: DHL - China to Bangladesh shipping guide
+    source_url: https://www.dhl.com/discover/en-bd/e-commerce-advice/shipping-guides-by-country/china-to-bangladesh-shipping
+    evidence_level: secondary
+    verified: false
+    summary: Advance income tax on imports is generally 5% of assessable value and can be credited against corporate income tax.
+    content: {ait_bp: 500}
+
+  - rule_id: bd-duty-9405-lamps
+    jurisdiction: BD
+    topic: import_duty
+    version: "demo"
+    valid_from: 2024-01-01
+    valid_from_precision: approx
+    source_title: DEMO ASSUMPTION - confirm in the NBR customs tariff for HS 9405 and current SROs
+    source_url: https://nbr.gov.bd/
+    evidence_level: none
+    verified: false
+    demo_assumption: true
+    summary: "DEMO ASSUMPTION for LED luminaires (HS 9405): CD 25%, RD 3%, SD 0%. Not confirmed from the NBR tariff."
+    content: {hs_prefix: "9405", cd_bp: 2500, rd_bp: 300, sd_bp: 0}
+
+  - rule_id: bd-rates-change-by-sro
+    jurisdiction: BD
+    topic: import_duty
+    version: "general"
+    valid_from: 2024-01-01
+    valid_from_precision: approx
+    source_title: KPMG Bangladesh tax updates (SRO-driven rate changes)
+    source_url: https://assets.kpmg.com/content/dam/kpmg/bd/pdf/TaxUpdate/newsletter-tax-updates-march-26.pdf
+    evidence_level: secondary
+    verified: false
+    summary: NBR changes many duty rates by SRO during the year (for example smartphone duty cut by an SRO in January 2026). Always evaluate the rate in force on the bill-of-entry date.
+    content: {rate_date: bill_of_entry_date}
+
+  - rule_id: bd-irc-required
+    jurisdiction: BD
+    topic: import_docs
+    version: "general"
+    valid_from: 2024-01-01
+    valid_from_precision: approx
+    source_title: Practitioner notes on Bangladesh import documentation
+    source_url: https://www.scribd.com/doc/148939589/Import-document
+    evidence_level: secondary
+    verified: false
+    summary: A private importer needs a valid Import Registration Certificate (IRC), a TIN and chamber or association membership to open an import LC.
+    content: {required_by_importer: [irc, tin, chamber_membership]}
+
+  - rule_id: bd-lc-identifiers-on-docs
+    jurisdiction: BD
+    topic: import_docs
+    version: "general"
+    valid_from: 2024-01-01
+    valid_from_precision: approx
+    source_title: Practitioner notes on Bangladesh LC document requirements
+    source_url: https://www.scribd.com/doc/148939589/Import-document
+    evidence_level: secondary
+    verified: false
+    summary: Bangladesh LCs commonly require the LCAF number, IRC number, HS code and the applicant's BIN to appear on the commercial invoice, packing list and bill of lading.
+    content: {must_appear_on: [commercial_invoice, packing_list, bill_of_lading], identifiers: [lcaf_no, irc_no, hs_code, bin]}
+
+  - rule_id: bd-bill-of-entry-asycuda
+    jurisdiction: BD
+    topic: import_docs
+    version: "general"
+    valid_from: 2024-01-01
+    valid_from_precision: approx
+    source_title: Practitioner notes on Bangladesh bill of entry
+    source_url: https://www.scribd.com/doc/148939589/Import-document
+    evidence_level: secondary
+    verified: false
+    summary: Sea imports are declared by bill of entry through the ASYCUDA World system by the importer or C&F agent; banks use it to confirm physical import before final remittance.
+    content: {system: ASYCUDA_World}
+
+  - rule_id: bd-bill-of-entry-bank-deadline
+    jurisdiction: BD
+    topic: import_docs
+    version: "unverified"
+    valid_from: 2024-01-01
+    valid_from_precision: approx
+    source_title: Single secondary source; not corroborated
+    source_url: https://www.scribd.com/presentation/949941802/Download-File
+    evidence_level: none
+    verified: false
+    summary: "UNVERIFIED. One source says importers must submit the bill of entry to the bank within 4 months. Do not enforce until Bangladesh Bank text is checked."
+    content: {months: 4, status: unverified}
+
+  - rule_id: bd-export-proceeds-120d
+    jurisdiction: BD
+    topic: export_proceeds
+    version: "general"
+    valid_from: 2023-01-01
+    valid_from_precision: approx
+    source_title: The Business Standard - export proceeds encashment rules
+    source_url: https://www.tbsnews.net/node/595594
+    evidence_level: secondary
+    verified: false
+    summary: For Bangladeshi exporters, proceeds must be repatriated within 120 days from the day after documents are sent to the importer's bank. (Relevant only to the reverse direction, Bangladesh to China.)
+    content: {max_days: 120}

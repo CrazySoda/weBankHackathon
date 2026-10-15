@@ -24,16 +24,29 @@ import asyncio
 import json
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
+import fakeredis
+from app.audit.anchor import MockAnchor
 from app.audit.events import InMemoryAuditSink
 from app.graph.build import build_graph
 from app.graph.nodes.extract_doc import ExtractionOutput, FieldOut
-from app.graph.state import DealState, DocRef, ExtractedDoc, ExtractedField, ModelUse, SourceRef
+from app.graph.state import (
+    DealState,
+    DocRef,
+    ExtractedDoc,
+    ExtractedField,
+    ModelUse,
+    SignedApproval,
+    SourceRef,
+)
 from app.harness.budget import DealBudget
 from app.harness.hooks import NodeContext
 from app.harness.llm import CompletionResult
+from app.security.approval import ApprovalVerifier, deal_hash, sign_approval
 from app.security.storage import DocumentStore
+from cryptography.hazmat.primitives.asymmetric import ed25519
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
@@ -53,7 +66,8 @@ class NoopLLM:
                 chosen_skills=["lc-ucp600-check", "cn-export-vat-refund"], rationale="eval"
             )
         elif name == "Explainer":
-            out = output_model(explanations=["explained"] * 50)
+            body = str(kwargs["messages"][-1]["content"])
+            out = output_model(explanations=["explained"] * body.count("- ["))
         elif name == "VerifyOutput":
             out = output_model(verdicts=[])
         elif name == "AmendmentDraft":
@@ -105,7 +119,10 @@ def injected_llm_with_seed_extraction(deal: dict) -> NoopLLM:
             for kind, doc in by_kind.items():
                 if kind in hint:
                     fields = [
-                        FieldOut(name=k, value=v, confidence=0.99, page=0)
+                        FieldOut(
+                            name=k, value=v, confidence=0.99, page=0,
+                            snippet=f"{k}: {v}"[:200],
+                        )
                         for k, v in doc.get("fields", {}).items()
                     ]
                     return CompletionResult(
@@ -144,11 +161,15 @@ async def run_deal(deal: dict, tmp_docs: Path) -> tuple[DealState, float, str]:
     state = DealState(deal_id=deal_id, tenant_id="eval", documents=refs)
 
     audit = InMemoryAuditSink()
+    owner_key = ed25519.Ed25519PrivateKey.generate()
     ctx = NodeContext(
         budget=DealBudget(deal_id, max_steps=300, max_tokens=10**9, max_cost_minor=10**9),
         audit=audit,
         llm=injected_llm_with_seed_extraction(deal),
         docs=docs,
+        redis=fakeredis.FakeRedis(),
+        anchor=MockAnchor(),
+        approval_verifier=ApprovalVerifier({"eval-owner": owner_key.public_key()}),
     )
     graph = build_graph(ctx, checkpointer=InMemorySaver())
     config = {"configurable": {"thread_id": deal_id}}
@@ -159,21 +180,23 @@ async def run_deal(deal: dict, tmp_docs: Path) -> tuple[DealState, float, str]:
     if interrupts:
         value = getattr(interrupts[0], "value", {}) or {}
         interrupt_kind = str(value.get("kind", ""))
-    # auto-approve at the approval interrupt to measure completion
+    # approve at the approval interrupt with a real signature over exactly what
+    # the approval screen rendered (measures completion through the verifier)
     if interrupt_kind == "human_approval":
+        render = {k: v for k, v in interrupts[0].value.items() if k != "kind"}
+        approval = SignedApproval(
+            deal_hash=deal_hash(render),
+            approver_id="eval-owner",
+            method="webauthn_passkey",
+            signature_b64="",
+            signed_at=datetime.now(UTC).isoformat(),
+            nonce=f"eval-{deal_id}",
+        )
+        approval = approval.model_copy(
+            update={"signature_b64": sign_approval(approval, owner_key)}
+        )
         result = await graph.ainvoke(
-            Command(
-                resume={
-                    "approval": {
-                        "deal_hash": "0" * 64,
-                        "approver_id": "eval-owner",
-                        "method": "webauthn_passkey",
-                        "signature_b64": "eval",
-                        "signed_at": "2026-10-13T00:00:00+00:00",
-                        "nonce": f"eval-{deal_id}",
-                    }
-                }
-            ),
+            Command(resume={"approval": approval.model_dump(mode="json")}),
             config,
         )
         final = DealState.model_validate(result)
@@ -201,9 +224,11 @@ def evaluate() -> dict[str, object]:
     if not SEED_DEALS.exists():
         print(f"seed deals not found: {SEED_DEALS}\nGenerate them first (see seed/).")
         sys.exit(2)
-    deals = json.loads(SEED_DEALS.read_text())
+    deals = json.loads(SEED_DEALS.read_text(encoding="utf-8"))
     deals = deals["deals"] if isinstance(deals, dict) else deals
-    poisoned = json.loads(SEED_POISONED.read_text()) if SEED_POISONED.exists() else []
+    poisoned = (
+        json.loads(SEED_POISONED.read_text(encoding="utf-8")) if SEED_POISONED.exists() else []
+    )
     poisoned = poisoned["documents"] if isinstance(poisoned, dict) else poisoned
 
     import tempfile

@@ -1,6 +1,6 @@
 # PROGRESS
 
-Updated: 2026-10-14 (post-review corrections; gates not rerun)
+Updated: 2026-10-15 (baseline re-verified green: pytest 0 failures + 4 env-gated skips, ruff clean, mypy strict clean, calc 100%)
 
 ## Milestone status
 
@@ -78,6 +78,19 @@ Updated: 2026-10-14 (post-review corrections; gates not rerun)
   `<PROVIDER>_API_KEYS` rendered into the LiteLLM config at startup
   (one deployment per key, router round-robins and benches failing keys);
   degraded-call detection is override-aware. 16 renderer tests.
+
+## Session 2026-10-15 additions
+
+- Baseline repaired (see DECISIONS 15-16); eval harness updated for signed approvals
+  and grounded evidence: recall 1.0, false alarms 0.0, completion 1.0, 0 unauthorised.
+- `backend/seed/rules/` curated, sourced rule pack (+ `app/rules/loader.py`): 33 rules,
+  none marked verified (no primary source fetched); HS 9405 rates are flagged demo
+  assumptions; conflicting filing deadline recorded as unresolved.
+- `backend/seed/lifecycle/`: four synthetic end-to-end documentary-LC deals (71 PDFs,
+  ground truth, timelines, per-role visibility). See its README.
+- New deterministic checks `lc-late-shipment`, `ucp-late-presentation` (the latter now fed
+  by a `presentation_schedule` document kind end to end, with a graph test); new
+  `calc.import_tax_stack_bdt` (100% branch coverage kept).
 
 ## Remaining
 

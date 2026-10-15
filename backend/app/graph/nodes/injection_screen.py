@@ -116,8 +116,10 @@ async def injection_screen(state: DealState, ctx: NodeContext) -> dict[str, Any]
     for doc in state.documents:
         try:
             stored = ctx.docs.get(doc.sha256)
-        except FileNotFoundError:
-            raise RuntimeError(f"source document unavailable for injection screening: {doc.doc_id}")
+        except FileNotFoundError as e:
+            raise RuntimeError(
+                f"source document unavailable for injection screening: {doc.doc_id}"
+            ) from e
         if doc.mime != "application/pdf":
             flags.append(Flag(
                 kind="classifier_hit", severity="block", doc_id=doc.doc_id,

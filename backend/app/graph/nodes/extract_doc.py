@@ -31,7 +31,13 @@ SYSTEM = (
     "Use kind='unknown' if the document type is not clear."
 )
 
-ALLOWED_KINDS = {"letter_of_credit", "commercial_invoice", "packing_list", "bill_of_lading"}
+ALLOWED_KINDS = {
+    "letter_of_credit",
+    "commercial_invoice",
+    "packing_list",
+    "bill_of_lading",
+    "presentation_schedule",
+}
 
 
 class FieldOut(BaseModel):

@@ -11,16 +11,10 @@ from typing import Any
 from pydantic import BaseModel
 
 from app.calc.money import Money
+from app.graph.check_inputs import lc_check_inputs
 from app.graph.state import DealState, EvidenceRef, ExtractedDoc, Finding, ModelUse
 from app.harness.hooks import NodeContext
 from app.rules.checks import run_lc_checks
-
-
-def _fields_map(state: DealState, kind: str) -> dict[str, Any]:
-    for d in state.extracted:
-        if d.kind == kind:
-            return {f.name: f.value for f in d.fields}
-    return {}
 
 
 def _doc_of_kind(state: DealState, kind: str) -> ExtractedDoc | None:
@@ -34,17 +28,17 @@ class SanctionsVerdict(BaseModel):
 
 
 async def compliance(state: DealState, ctx: NodeContext) -> dict[str, Any]:
-    lc = _fields_map(state, "letter_of_credit")
-    invoice = _fields_map(state, "commercial_invoice")
+    lc, invoice = lc_check_inputs(state)
 
     findings: list[Finding] = []
 
     # 1. deterministic LC consistency battery
     lc_doc = _doc_of_kind(state, "letter_of_credit")
     inv_doc = _doc_of_kind(state, "commercial_invoice")
+    schedule_doc = _doc_of_kind(state, "presentation_schedule")
     source_evidence = [
         EvidenceRef(doc_id=doc.doc_id, source=field.source, quote=field.source.snippet)
-        for doc in (lc_doc, inv_doc) if doc is not None
+        for doc in (lc_doc, inv_doc, schedule_doc) if doc is not None
         for field in doc.fields if field.source.snippet
     ]
     for d in run_lc_checks(lc, invoice):
