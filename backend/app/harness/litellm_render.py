@@ -26,7 +26,7 @@ import os
 from collections.abc import Mapping
 from pathlib import Path
 
-PROVIDERS = ("anthropic", "openai", "google", "ollama")
+PROVIDERS = ("anthropic", "openai", "google", "ollama", "deepseek", "dashscope")
 
 # LiteLLM model strings (provider prefix required). Curated defaults; override
 # with LLM_REASONER_MODEL / LLM_FAST_MODEL.
@@ -47,6 +47,14 @@ DEFAULT_MODELS: dict[str, dict[str, str]] = {
         "reasoner": "ollama/qwen3:32b",
         "fast": "ollama/qwen3:8b",
     },
+    "deepseek": {
+        "reasoner": "deepseek/deepseek-chat",
+        "fast": "deepseek/deepseek-chat",
+    },
+    "dashscope": {
+        "reasoner": "dashscope/qwen-plus",
+        "fast": "dashscope/qwen-turbo",
+    },
 }
 
 KEYS_ENV: dict[str, str | None] = {
@@ -54,6 +62,8 @@ KEYS_ENV: dict[str, str | None] = {
     "openai": "OPENAI_API_KEYS",
     "google": "GOOGLE_API_KEYS",
     "ollama": None,  # local runtime needs no key
+    "deepseek": "DEEPSEEK_API_KEYS",
+    "dashscope": "DASHSCOPE_API_KEYS",
 }
 
 LEGACY_KEY_ENV: dict[str, str] = {
@@ -61,6 +71,8 @@ LEGACY_KEY_ENV: dict[str, str] = {
     "openai": "OPENAI_API_KEY",
     "google": "GOOGLE_API_KEY",
     "ollama": "",
+    "deepseek": "DEEPSEEK_API_KEY",
+    "dashscope": "DASHSCOPE_API_KEY",
 }
 
 MAX_TOKENS = {"reasoner": 4096, "fast": 2048}

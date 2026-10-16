@@ -38,8 +38,10 @@ async def compliance(state: DealState, ctx: NodeContext) -> dict[str, Any]:
     schedule_doc = _doc_of_kind(state, "presentation_schedule")
     source_evidence = [
         EvidenceRef(doc_id=doc.doc_id, source=field.source, quote=field.source.snippet)
-        for doc in (lc_doc, inv_doc, schedule_doc) if doc is not None
-        for field in doc.fields if field.source.snippet
+        for doc in (lc_doc, inv_doc, schedule_doc)
+        if doc is not None
+        for field in doc.fields
+        if field.source.snippet
     ]
     for d in run_lc_checks(lc, invoice):
         findings.append(
@@ -116,12 +118,15 @@ async def compliance(state: DealState, ctx: NodeContext) -> dict[str, Any]:
             explanations: list[str] = Field(description="one per finding, plain language")
 
         system, version = ctx.system_prompt(
-            "compliance", state,
+            "compliance",
+            state,
             "Explain supplied findings in order. Never add a finding, rule, or number.",
         )
         result = await ctx.llm.complete(
             alias="reasoner",
-            system=system + "\n\n" + (
+            system=system
+            + "\n\n"
+            + (
                 "Explain compliance findings for a small-business exporter. "
                 "Never change numbers; explain them in one sentence each, in order."
             ),

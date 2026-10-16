@@ -65,11 +65,18 @@ async def verify(state: DealState, ctx: NodeContext) -> dict[str, Any]:
             raise ValueError("source document is missing or unsupported")
         return SourceOutput(text=full_text(parse_pdf_spans(ctx.docs.get(doc.sha256))))
 
-    source_registry.register(Tool(
-        name="read_source_doc", description="Read original PDF text for verification",
-        fn=read_source, input_model=SourceInput, output_model=SourceOutput,
-        side_effect="read", allowed_nodes=frozenset({"verify"}), llm_callable=True,
-    ))
+    source_registry.register(
+        Tool(
+            name="read_source_doc",
+            description="Read original PDF text for verification",
+            fn=read_source,
+            input_model=SourceInput,
+            output_model=SourceOutput,
+            side_effect="read",
+            allowed_nodes=frozenset({"verify"}),
+            llm_callable=True,
+        )
+    )
 
     for f in state.findings:
         if f.status != "open":
@@ -102,9 +109,15 @@ async def verify(state: DealState, ctx: NodeContext) -> dict[str, Any]:
                 grounded = False
                 continue
             try:
-                source = source_registry.call("verify", "read_source_doc", SourceInput(
-                    deal_id=state.deal_id, tenant_id=state.tenant_id, doc_id=ref.doc_id,
-                ))
+                source = source_registry.call(
+                    "verify",
+                    "read_source_doc",
+                    SourceInput(
+                        deal_id=state.deal_id,
+                        tenant_id=state.tenant_id,
+                        doc_id=ref.doc_id,
+                    ),
+                )
             except FileNotFoundError:
                 grounded = False
                 continue
@@ -170,13 +183,16 @@ async def verify(state: DealState, ctx: NodeContext) -> dict[str, Any]:
         assert ctx.llm is not None
         evidence_text = "\n".join(sources)
         system, version = ctx.system_prompt(
-            "verify", state,
+            "verify",
+            state,
             "Insufficient source evidence must return needs_evidence and never clear a finding.",
         )
         result = await ctx.llm.complete(
             alias="reasoner",
             allow_degraded=False,
-            system=system + "\n\n" + (
+            system=system
+            + "\n\n"
+            + (
                 "You are a verification officer. Given a finding and its evidence, "
                 "decide whether the finding is upheld. Judge ONLY from the evidence "
                 "provided; if the evidence is insufficient, uphold=False and say why. "

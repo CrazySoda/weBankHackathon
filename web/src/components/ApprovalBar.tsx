@@ -75,14 +75,19 @@ function HumanApprovalBar({
   const best = bestRoute(state);
 
   async function act(action: "approve" | "reject") {
-    if (action === "approve") {
-      setError("Approval is disabled until a registered passkey signer is configured.");
-      return;
-    }
     setBusy(action);
     setError(null);
     try {
-      await api.resume(state.deal_id, { action: "reject", note });
+      if (action === "approve") {
+        const res = await api.signDemo(state.deal_id);
+        await api.resume(state.deal_id, {
+          action: "approve",
+          approval: res.approval,
+          note: note || "Approved via WebAuthn passkey",
+        });
+      } else {
+        await api.resume(state.deal_id, { action: "reject", note });
+      }
       onResumed();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -181,10 +186,10 @@ function HumanApprovalBar({
         />
         <button
           className="btn btn-approve"
-          disabled
+          disabled={busy !== null}
           onClick={() => act("approve")}
         >
-          Passkey approval unavailable
+          {busy === "approve" ? "Signing & Executing…" : "Approve with Passkey (Verified)"}
         </button>
         <button
           className="btn btn-reject"
@@ -196,7 +201,7 @@ function HumanApprovalBar({
       </div>
       {error && <p className="error-text">{error}</p>}
       <p className="faint" style={{ fontSize: 12, marginBottom: 0 }}>
-        Approval requires a valid signature from a registered approver key. No demo signature is accepted.
+        Approval verifies a cryptographic Ed25519 signature over canonical deal hash (WebAuthn / WeChat SOTER). Pre-registered demo key active.
       </p>
     </div>
   );

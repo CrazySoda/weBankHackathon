@@ -294,6 +294,11 @@ export const api = {
       method: "POST",
     }),
 
+  loadSeedDeal: (seedId: string) =>
+    request<{ deal_id: string; seed_id: string }>(`/deals/seed/${encodeURIComponent(seedId)}`, {
+      method: "POST",
+    }),
+
   uploadDocument: (dealId: string, file: File, kind: DocKind) => {
     const form = new FormData();
     form.append("file", file);
@@ -312,6 +317,11 @@ export const api = {
 
   getDeal: (dealId: string) =>
     request<DealDetail>(`/deals/${encodeURIComponent(dealId)}`),
+
+  signDemo: (dealId: string) =>
+    request<{ approval: ApprovalStub }>(`/deals/${encodeURIComponent(dealId)}/sign_demo`, {
+      method: "POST",
+    }),
 
   resume: (dealId: string, body: { action: string; approval?: ApprovalStub; note?: string }) =>
     request<{ resumed: boolean }>(`/deals/${encodeURIComponent(dealId)}/resume`, {
