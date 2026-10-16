@@ -112,9 +112,13 @@ async def verify(state: DealState, ctx: NodeContext) -> dict[str, Any]:
             continue
         sources: list[str] = []
         grounded = bool(f.evidence) and ctx.docs is not None
+        why: list[str] = []  # specific reasons grounding failed (shown to the operator)
+        if not f.evidence:
+            why.append("finding carries no evidence")
         for ref in f.evidence:
             if not ref.quote:
                 grounded = False
+                why.append("evidence without a quote")
                 continue
             try:
                 source = source_registry.call(
@@ -128,23 +132,28 @@ async def verify(state: DealState, ctx: NodeContext) -> dict[str, Any]:
                 )
             except FileNotFoundError:
                 grounded = False
+                why.append("source file not found")
                 continue
-            except Exception:
+            except Exception as e:
                 grounded = False
+                why.append(f"source read failed ({type(e).__name__})")
                 continue
             if not isinstance(source, SourceOutput):
                 grounded = False
+                why.append("source read returned an unexpected result")
                 continue
             source_text = source.text
             if ref.quote not in source_text:
                 grounded = False
+                why.append(f"quote not found in source: {ref.quote[:50]!r}")
             else:
                 sources.append(ref.quote)
         if not grounded:
             updated.append(
                 f.model_copy(
                     update={
-                        "explanation": "verification failed: source evidence missing or ungrounded"
+                        "explanation": "verification failed: source evidence missing or "
+                        "ungrounded" + (f" ({'; '.join(dict.fromkeys(why))[:240]})" if why else "")
                     }
                 )
             )
