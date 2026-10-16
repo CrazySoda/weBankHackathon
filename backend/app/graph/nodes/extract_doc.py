@@ -49,8 +49,10 @@ class FieldOut(BaseModel):
 
 
 class ExtractionOutput(BaseModel):
-    kind: DocKind = "unknown"
-    fields: list[FieldOut] = []
+    # Both required (no defaults): a defaulted field is optional in the JSON schema
+    # and some models (Gemini) then omit `fields` and return a bare {"kind": ...}.
+    kind: DocKind
+    fields: list[FieldOut]
 
 
 def _spans_for(stored_bytes: bytes, mime: str) -> list[TextSpan]:

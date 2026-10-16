@@ -17,8 +17,10 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./backend/db/init:/docker-entrypoint-initdb.d:ro
+      - pgdata:/var/lib/postgresql
+      # Only the extension script runs at initdb. 002_rls.sql needs the tables, so
+      # app.db.bootstrap.apply_schema runs it after the ORM creates them.
+      - ./backend/app/db/init/001_extensions.sql:/docker-entrypoint-initdb.d/001_extensions.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cleartrade"]
       interval: 5s
@@ -63,6 +65,10 @@ services:
       LLM_FAST_MODEL: ${LLM_FAST_MODEL:-}
       # the renderer picks the right pool for the selected provider
       LLM_API_KEYS: ${ANTHROPIC_API_KEYS:-${OPENAI_API_KEYS:-${GOOGLE_API_KEYS:-}}}
+      # the renderer reads the selected provider's pool variable by name
+      ANTHROPIC_API_KEYS: ${ANTHROPIC_API_KEYS:-}
+      OPENAI_API_KEYS: ${OPENAI_API_KEYS:-}
+      GOOGLE_API_KEYS: ${GOOGLE_API_KEYS:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
@@ -72,7 +78,7 @@ services:
       - ./backend/app/harness/litellm_render.py:/render/litellm_render.py:ro
     # Admin UI not exposed; only the API port above, localhost-only.
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:4000/health/liveliness || exit 1"]
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:4000/health/liveliness', timeout=5)"]
       interval: 10s
       retries: 10
     depends_on:

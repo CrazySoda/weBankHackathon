@@ -137,6 +137,7 @@ class FxQuoteRow(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     deal_id: Mapped[str] = mapped_column(ForeignKey("trade_deal.id"), index=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), index=True)  # RLS key
     route_id: Mapped[str] = mapped_column(String(64))
     provider: Mapped[str] = mapped_column(String(64))
     synthetic: Mapped[bool] = mapped_column(Boolean, default=True)

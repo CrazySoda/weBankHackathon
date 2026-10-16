@@ -11,6 +11,11 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY app ./app
+# Loaded at runtime relative to the package (prompts, skills, rule pack); without
+# these the graph fails at the first node.
+COPY prompts ./prompts
+COPY skills ./skills
+COPY seed/rules ./seed/rules
 RUN uv sync --frozen --no-dev
 
 ENV PATH="/app/.venv/bin:$PATH"
