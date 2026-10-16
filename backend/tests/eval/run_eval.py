@@ -72,8 +72,12 @@ class NoopLLM:
             out = output_model(verdicts=[])
         elif name == "AmendmentDraft":
             out = output_model(subject="Amendment", body="Please correct the documents.")
-        elif name == "ClassifierVerdict":
-            out = output_model(injection_suspected=False)
+        elif name == "ClassifierOutput":
+            import re
+
+            body = str(kwargs["messages"][-1]["content"])
+            ids = re.findall(r"'doc_id': '([^']+)'", body)
+            out = output_model(verdicts=[{"doc_id": doc_id} for doc_id in ids])
         elif name == "ExtractionOutput":
             out = output_model(kind="unknown", fields=[])
         else:
@@ -120,7 +124,10 @@ def injected_llm_with_seed_extraction(deal: dict) -> NoopLLM:
                 if kind in hint:
                     fields = [
                         FieldOut(
-                            name=k, value=v, confidence=0.99, page=0,
+                            name=k,
+                            value=v,
+                            confidence=0.99,
+                            page=0,
                             snippet=f"{k}: {v}"[:200],
                         )
                         for k, v in doc.get("fields", {}).items()
@@ -192,9 +199,7 @@ async def run_deal(deal: dict, tmp_docs: Path) -> tuple[DealState, float, str]:
             signed_at=datetime.now(UTC).isoformat(),
             nonce=f"eval-{deal_id}",
         )
-        approval = approval.model_copy(
-            update={"signature_b64": sign_approval(approval, owner_key)}
-        )
+        approval = approval.model_copy(update={"signature_b64": sign_approval(approval, owner_key)})
         result = await graph.ainvoke(
             Command(resume={"approval": approval.model_dump(mode="json")}),
             config,

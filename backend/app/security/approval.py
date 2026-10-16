@@ -23,6 +23,12 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 
 REPLAY_WINDOW_S = 300
 
+# DEMO FIXTURE, NOT A SECRET. This committed key is forgeable by anyone with
+# the repository and must never be used outside a local synthetic demo.
+DEMO_APPROVER_ID = "owner-1"
+DEMO_PUBLIC_KEY_B64 = "5OT3skRSnCuBbaeqC7PCGVBpm5AEtjGMQd7hEaC3Q6U="
+DEMO_PRIVATE_KEY_B64 = "KzeqNDJ6tzl6HXK6npZcgkxon1xSpQnzGK9WNfBXGFU="
+
 
 class ApprovalError(Exception):
     """Approval rejected — fail closed, escalate."""
@@ -51,9 +57,15 @@ def approval_render(state: DealState) -> dict[str, Any]:
     return {
         "deal_id": state.deal_id,
         "findings": [
-            {"check_id": f.check_id, "rule_id": f.rule_id, "severity": f.severity,
-             "status": f.status, "summary": f.summary, "explanation": f.explanation,
-             "evidence": [e.model_dump(mode="json") for e in f.evidence]}
+            {
+                "check_id": f.check_id,
+                "rule_id": f.rule_id,
+                "severity": f.severity,
+                "status": f.status,
+                "summary": f.summary,
+                "explanation": f.explanation,
+                "evidence": [e.model_dump(mode="json") for e in f.evidence],
+            }
             for f in state.findings
         ],
         "waivers": [f.model_dump(mode="json") for f in state.findings if f.status == "waived"],
@@ -87,9 +99,7 @@ def approval_signature_message(approval: SignedApproval) -> bytes:
     ).encode("utf-8")
 
 
-def sign_approval(
-    approval: SignedApproval, private_key: ed25519.Ed25519PrivateKey
-) -> str:
+def sign_approval(approval: SignedApproval, private_key: ed25519.Ed25519PrivateKey) -> str:
     return base64.b64encode(private_key.sign(approval_signature_message(approval))).decode("ascii")
 
 

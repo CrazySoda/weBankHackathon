@@ -49,9 +49,12 @@ def after_screen(state: DealState) -> RouterOutcome:
     if fatal(state) or state.blocked_by_injection():
         return "escalate"
     extracted_ids = {d.doc_id for d in state.extracted}
-    if (len(extracted_ids) != len(state.documents) or
-            any(not d.fields or d.low_confidence or any(f.confidence < 0.7 for f in d.fields)
-                for d in state.extracted)):
+    if len(extracted_ids) != len(state.documents) or any(
+        not d.fields
+        or d.low_confidence
+        or any(f.name in {"total_amount", "beneficiary"} and f.confidence < 0.7 for f in d.fields)
+        for d in state.extracted
+    ):
         return "escalate"
     return "plan"
 
@@ -61,8 +64,7 @@ def after_verify(state: DealState) -> RouterOutcome:
         return "escalate"
     verified_keys = {(f.check_id, f.rule_id) for f in state.verified}
     if any(
-        f.status == "open" and (f.check_id, f.rule_id) not in verified_keys
-        for f in state.findings
+        f.status == "open" and (f.check_id, f.rule_id) not in verified_keys for f in state.findings
     ):
         return "escalate"
     blocks = [f for f in state.findings if f.severity == "block" and f.status == "open"]

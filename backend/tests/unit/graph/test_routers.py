@@ -120,7 +120,41 @@ class TestAfterScreen:
         weak.fields[0] = ExtractedField(
             name="x", value="1", confidence=0.5, source=SourceRef(page=1)
         )
+        assert after_screen(state(documents=[doc("a")], extracted=[weak])) == "plan"
+
+    def test_low_confidence_summary_flag_escalates(self):
+        weak = extracted("a").model_copy(update={"low_confidence": True})
         assert after_screen(state(documents=[doc("a")], extracted=[weak])) == "escalate"
+
+    def test_low_confidence_noncritical_field_does_not_escalate(self):
+        soft = ExtractedDoc(
+            doc_id="doc_a",
+            sha256="a",
+            kind="commercial_invoice",
+            fields=[
+                ExtractedField(
+                    name="goods_description", value="lamp", confidence=0.5, source=SourceRef(page=1)
+                )
+            ],
+            extraction_model="fast",
+            low_confidence=False,
+        )
+        assert after_screen(state(documents=[doc("a")], extracted=[soft])) == "plan"
+
+    def test_low_confidence_required_field_escalates(self):
+        soft = ExtractedDoc(
+            doc_id="doc_a",
+            sha256="a",
+            kind="commercial_invoice",
+            fields=[
+                ExtractedField(
+                    name="beneficiary", value="seller", confidence=0.5, source=SourceRef(page=1)
+                )
+            ],
+            extraction_model="fast",
+            low_confidence=False,
+        )
+        assert after_screen(state(documents=[doc("a")], extracted=[soft])) == "escalate"
 
     def test_fully_extracted_goes_to_plan(self):
         s = state(documents=[doc("a")], extracted=[extracted("a")])

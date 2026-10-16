@@ -32,6 +32,7 @@ from redis import Redis
 @dataclass
 class DealRecord:
     state: DealState
+    budget: DealBudget
     queue: asyncio.Queue[dict[str, Any]] = field(default_factory=asyncio.Queue)
     thread_id: str = ""
     running: bool = False
@@ -109,10 +110,16 @@ class DealRunner:
         self.anchor = MockAnchor()
         self.idempotency = Redis.from_url(settings.redis_url, decode_responses=True)
         raw_keys = json.loads(settings.approval_public_keys_json)
-        self.approval_verifier = ApprovalVerifier({
-            name: Ed25519PublicKey.from_public_bytes(base64.b64decode(value, validate=True))
-            for name, value in raw_keys.items()
-        })
+        if not raw_keys and settings.env == "demo":
+            from app.security.approval import DEMO_APPROVER_ID, DEMO_PUBLIC_KEY_B64
+
+            raw_keys = {DEMO_APPROVER_ID: DEMO_PUBLIC_KEY_B64}
+        self.approval_verifier = ApprovalVerifier(
+            {
+                name: Ed25519PublicKey.from_public_bytes(base64.b64decode(value, validate=True))
+                for name, value in raw_keys.items()
+            }
+        )
         self.llm = LLMClient(
             base_url=settings.litellm_base_url,
             api_key=settings.litellm_virtual_key,
@@ -125,6 +132,12 @@ class DealRunner:
         deal_id = new_id("deal")
         rec = DealRecord(
             state=DealState(deal_id=deal_id, tenant_id=tenant_id),
+            budget=DealBudget(
+                deal_id,
+                max_steps=self.settings.budget_max_steps,
+                max_tokens=self.settings.budget_max_tokens_per_deal,
+                max_cost_minor=self.settings.budget_max_cost_minor_per_deal,
+            ),
             thread_id=deal_id,
         )
         self.deals[deal_id] = rec
@@ -168,15 +181,20 @@ class DealRunner:
         return self._checkpointers[deal_id]
 
     def _graph_ctx(self, deal_id: str) -> NodeContext:
+        budget = self._require(deal_id).budget
+        llm = self.llm
+        if isinstance(self.llm, LLMClient):
+            llm = LLMClient(
+                base_url=self.settings.litellm_base_url,
+                api_key=self.settings.litellm_virtual_key,
+                timeout_s=self.settings.litellm_timeout_s,
+                _acreate=self.llm._acreate,
+                budget=budget,
+            )
         return NodeContext(
-            budget=DealBudget(
-                deal_id,
-                max_steps=self.settings.budget_max_steps,
-                max_tokens=self.settings.budget_max_tokens_per_deal,
-                max_cost_minor=self.settings.budget_max_cost_minor_per_deal,
-            ),
+            budget=budget,
             audit=self.audit,
-            llm=self.llm,
+            llm=llm,
             docs=self.docs,
             anchor=self.anchor,
             redis=self.idempotency,
@@ -211,7 +229,7 @@ class DealRunner:
         if resume_payload.get("action") == "corrected_document":
             resume_payload = {
                 **resume_payload,
-                "documents": [doc.model_dump() for doc in rec.state.documents],
+                "documents": list(rec.state.documents),
             }
         rec.running = True
         graph = build_graph(self._graph_ctx(deal_id), checkpointer=self._checkpointer(deal_id))

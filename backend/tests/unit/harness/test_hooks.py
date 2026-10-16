@@ -117,4 +117,3 @@ class TestInvariants:
             )
         )
         assert validate_state_invariants(state)
-

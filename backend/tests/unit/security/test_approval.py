@@ -62,9 +62,7 @@ class TestReplay:
         approval = mk_approval(keys, render)
         old = (datetime.now(UTC) - timedelta(seconds=600)).isoformat()
         stale = approval.model_copy(update={"signed_at": old, "signature_b64": ""})
-        stale = stale.model_copy(
-            update={"signature_b64": sign_approval(stale, keys["owner"])}
-        )
+        stale = stale.model_copy(update={"signature_b64": sign_approval(stale, keys["owner"])})
         with pytest.raises(ApprovalError, match="expired"):
             verifier.verify(stale, render)
 

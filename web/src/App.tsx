@@ -162,6 +162,18 @@ export default function App() {
     },
   });
 
+  const loadSeed = useMutation({
+    mutationFn: (seedId: string) => api.loadSeedDeal(seedId),
+    onSuccess: (res) => {
+      setDeals((prev) => [res.deal_id, ...prev]);
+      setSelected(res.deal_id);
+      setEvents([]);
+      setInterrupt(null);
+      void queryClient.invalidateQueries({ queryKey: ["deal", res.deal_id] });
+    },
+    onError: (e) => setRunError(e instanceof Error ? e.message : String(e)),
+  });
+
   const runDeal = useMutation({
     mutationFn: (dealId: string) => api.runDeal(dealId),
     onSuccess: (_res, dealId) => openStream(dealId),
@@ -206,8 +218,17 @@ export default function App() {
               className="btn btn-primary"
               onClick={() => createDeal.mutate()}
               disabled={createDeal.isPending}
+              style={{ flex: 1 }}
             >
               {createDeal.isPending ? "…" : "+ New deal"}
+            </button>
+            <button
+              className="btn btn-secondary"
+              title="Load Hero Scenario (Over-Invoiced LC Discrepancy seed-06)"
+              onClick={() => loadSeed.mutate("seed-06")}
+              disabled={loadSeed.isPending}
+            >
+              {loadSeed.isPending ? "…" : "⚡ Demo Deal"}
             </button>
           </div>
           <div className="row" style={{ gap: 6 }}>

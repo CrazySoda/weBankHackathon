@@ -62,12 +62,18 @@ def execution_registry(ctx: NodeContext) -> ToolRegistry:
         args = PayoutInput.model_validate(raw_args)
         return PayoutOutput(payout_ref=f"sandbox-{args.deal_id}-{args.nonce[:8]}")
 
-    registry.register(Tool(
-        name="execute_sandbox_payout", description="Create deterministic sandbox payout reference",
-        fn=sandbox_payout,
-        input_model=PayoutInput, output_model=PayoutOutput, side_effect="act",
-        allowed_nodes=frozenset({"execute"}), llm_callable=False,
-    ))
+    registry.register(
+        Tool(
+            name="execute_sandbox_payout",
+            description="Create deterministic sandbox payout reference",
+            fn=sandbox_payout,
+            input_model=PayoutInput,
+            output_model=PayoutOutput,
+            side_effect="act",
+            allowed_nodes=frozenset({"execute"}),
+            llm_callable=False,
+        )
+    )
 
     def anchor(raw_args: BaseModel) -> BaseModel:
         args = AnchorInput.model_validate(raw_args)
@@ -76,11 +82,18 @@ def execution_registry(ctx: NodeContext) -> ToolRegistry:
         receipt = ctx.anchor.anchor(args.chain_head, args.tenant_id)
         return AnchorOutput(chain_head=args.chain_head, tx_ref=receipt.tx_ref)
 
-    registry.register(Tool(
-        name="anchor_hash", description="Anchor an audit chain head",
-        fn=anchor, input_model=AnchorInput, output_model=AnchorOutput,
-        side_effect="act", allowed_nodes=frozenset({"execute"}), llm_callable=False,
-    ))
+    registry.register(
+        Tool(
+            name="anchor_hash",
+            description="Anchor an audit chain head",
+            fn=anchor,
+            input_model=AnchorInput,
+            output_model=AnchorOutput,
+            side_effect="act",
+            allowed_nodes=frozenset({"execute"}),
+            llm_callable=False,
+        )
+    )
     return registry
 
 
@@ -129,8 +142,13 @@ def _amount(state: DealState) -> int | None:
 
 
 async def execute(state: DealState, ctx: NodeContext) -> dict[str, Any]:
-    if (state.approval is None or ctx.approval_verifier is None or state.policy is None
-            or state.policy.decision != "allow" or state.has_block_findings()):
+    if (
+        state.approval is None
+        or ctx.approval_verifier is None
+        or state.policy is None
+        or state.policy.decision != "allow"
+        or state.has_block_findings()
+    ):
         return {"fatal_error": "execute preconditions failed"}
     try:
         verify_approval(
@@ -156,13 +174,25 @@ async def execute(state: DealState, ctx: NodeContext) -> dict[str, Any]:
 
     registry = execution_registry(ctx)
     head = ctx.audit.head(state.tenant_id)
-    anchor = registry.call("execute", "anchor_hash", AnchorInput(
-        deal_id=state.deal_id, tenant_id=state.tenant_id, chain_head=head,
-    ))
-    payout_result = registry.call("execute", "execute_sandbox_payout", PayoutInput(
-        deal_id=state.deal_id, tenant_id=state.tenant_id,
-        nonce=state.approval.nonce, amount_minor=amount_minor,
-    ))
+    anchor = registry.call(
+        "execute",
+        "anchor_hash",
+        AnchorInput(
+            deal_id=state.deal_id,
+            tenant_id=state.tenant_id,
+            chain_head=head,
+        ),
+    )
+    payout_result = registry.call(
+        "execute",
+        "execute_sandbox_payout",
+        PayoutInput(
+            deal_id=state.deal_id,
+            tenant_id=state.tenant_id,
+            nonce=state.approval.nonce,
+            amount_minor=amount_minor,
+        ),
+    )
     if not isinstance(payout_result, PayoutOutput) or not isinstance(anchor, AnchorOutput):
         return {"fatal_error": "execution tool returned an invalid output"}
     payout = payout_result

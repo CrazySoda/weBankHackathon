@@ -127,8 +127,11 @@ class TestFixableDiscrepancy:
             out = extraction_for_hint(messages)
             if out.kind == "commercial_invoice":
                 out.fields[0] = FieldOut(
-                    name="total_amount", value="120000.00", confidence=0.99,
-                    snippet="USD 120,000.00", page=1
+                    name="total_amount",
+                    value="120000.00",
+                    confidence=0.99,
+                    snippet="USD 120,000.00",
+                    page=1,
                 )
             return out
 
@@ -277,8 +280,11 @@ def _with_schedule(presentation_date: str):
                 kind="presentation_schedule",
                 fields=[
                     FieldOut(
-                        name="presentation_date", value=presentation_date, confidence=0.99,
-                        snippet=f"presentation_date: {presentation_date}", page=1,
+                        name="presentation_date",
+                        value=presentation_date,
+                        confidence=0.99,
+                        snippet=f"presentation_date: {presentation_date}",
+                        page=1,
                     ),
                 ],
             )
@@ -304,13 +310,13 @@ class TestPresentationSchedule:
     async def test_late_presentation_is_caught_and_escalates(self, graph, fake_llm, docs_store):
         fake_llm.hooks["ExtractionOutput"] = _with_schedule("2026-11-30")  # 29 days after 11-01
         state = DealState(
-            deal_id="d8", tenant_id="t1",
+            deal_id="d8",
+            tenant_id="t1",
             documents=_three_docs("d8", docs_store, "2026-11-30"),
         )
         result = await graph.ainvoke(state, config={"configurable": {"thread_id": "late-pres"}})
         assert any(
-            f.rule_id == "ucp-late-presentation" and f.status == "open"
-            for f in result["findings"]
+            f.rule_id == "ucp-late-presentation" and f.status == "open" for f in result["findings"]
         ), "late presentation must stay an open finding, not be closed by verify"
         assert "21 days" in result["escalation_reason"]
         assert result.get("receipt") is None
@@ -318,7 +324,8 @@ class TestPresentationSchedule:
     async def test_on_time_presentation_reaches_approval(self, graph, fake_llm, docs_store):
         fake_llm.hooks["ExtractionOutput"] = _with_schedule("2026-11-09")  # day 8
         state = DealState(
-            deal_id="d9", tenant_id="t1",
+            deal_id="d9",
+            tenant_id="t1",
             documents=_three_docs("d9", docs_store, "2026-11-09"),
         )
         result = await graph.ainvoke(state, config={"configurable": {"thread_id": "ok-pres"}})

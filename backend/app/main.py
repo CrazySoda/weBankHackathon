@@ -131,6 +131,66 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         task.add_done_callback(background_tasks.discard)
         return {"resumed": True, **SYNTHETIC_BADGE}
 
+    @app.post("/deals/{deal_id}/sign_demo")
+    async def sign_demo(deal_id: str) -> dict[str, Any]:
+        if settings.env != "demo":
+            raise HTTPException(403, "demo signing unavailable in non-demo environment")
+        if deal_id not in runner.deals:
+            raise HTTPException(404, "unknown deal")
+        rec = runner.deals[deal_id]
+        import base64
+        from datetime import UTC, datetime
+
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        from app.graph.state import SignedApproval, new_id
+        from app.security.approval import (
+            DEMO_APPROVER_ID,
+            DEMO_PRIVATE_KEY_B64,
+            approval_render,
+            deal_hash,
+            sign_approval,
+        )
+
+        priv_bytes = base64.b64decode(DEMO_PRIVATE_KEY_B64)
+        priv_key = Ed25519PrivateKey.from_private_bytes(priv_bytes)
+        render_data = approval_render(rec.state)
+        h = deal_hash(render_data)
+        now_str = datetime.now(UTC).isoformat()
+        approval = SignedApproval(
+            deal_hash=h,
+            approver_id=DEMO_APPROVER_ID,
+            method="webauthn_passkey",
+            signature_b64="",
+            signed_at=now_str,
+            nonce=new_id("nonce"),
+        )
+        sig = sign_approval(approval, priv_key)
+        signed = approval.model_copy(update={"signature_b64": sig})
+        return {"approval": signed.model_dump(), **SYNTHETIC_BADGE}
+
+    @app.post("/deals/seed/{seed_id}")
+    async def load_seed_deal(seed_id: str) -> dict[str, Any]:
+        """One-click demo deal loader (M10 Demo Hardening).
+        Loads synthetic seed deal PDFs (e.g. seed-01 clean, seed-06 fixable discrepancy)
+        directly into a new deal record ready to run."""
+        seed_dir = Path(__file__).resolve().parents[1] / "seed" / "deals" / "pdfs" / seed_id
+        if not seed_dir.is_dir():
+            raise HTTPException(404, f"seed deal {seed_id!r} not found")
+        rec = runner.create_deal("demo-tenant")
+        for pdf_path in sorted(seed_dir.glob("*.pdf")):
+            data = pdf_path.read_bytes()
+            kind = "unknown"
+            name_lower = pdf_path.name.lower()
+            if "lc" in name_lower:
+                kind = "letter_of_credit"
+            elif "inv" in name_lower:
+                kind = "commercial_invoice"
+            elif "pl" in name_lower:
+                kind = "packing_list"
+            runner.add_document(rec.state.deal_id, data, pdf_path.name, "application/pdf", kind)
+        return {"deal_id": rec.state.deal_id, "seed_id": seed_id, **SYNTHETIC_BADGE}
+
     @app.get("/deals/{deal_id}/audit")
     async def deal_audit(deal_id: str) -> dict[str, Any]:
         if deal_id not in runner.deals:
@@ -140,6 +200,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "chain_ok": runner.audit.verify_chain(runner.deals[deal_id].state.tenant_id),
             **SYNTHETIC_BADGE,
         }
+
+    # Demo-grade structural SOTER endpoints stay disabled unless explicitly enabled.
+    if settings.feature_wechat:
+        from app.channels.wechat.client import InMemoryTokenCache, WechatClient
+        from app.channels.wechat.router import WechatDeps, create_wechat_router
+
+        wx_client = WechatClient(
+            app_id="wx_weBank_demo",
+            app_secret="demo_secret",
+            cache=InMemoryTokenCache(),
+        )
+        deps = WechatDeps(wx_client, runner, "demo_callback_token")
+        app.include_router(create_wechat_router(deps))
 
     return app
 

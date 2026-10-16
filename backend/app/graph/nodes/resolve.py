@@ -32,7 +32,9 @@ async def resolve_exception(state: DealState, ctx: NodeContext) -> dict[str, Any
     system, version = ctx.system_prompt("resolve_exception", state)
     result = await ctx.llm.complete(
         alias="reasoner",
-        system=system + "\n\n" + (
+        system=system
+        + "\n\n"
+        + (
             "Draft an amendment request to the buyer/applicant that fixes the listed "
             "document discrepancies. Quote the exact correction needed for each. "
             "Text only — you cannot send anything."
@@ -50,8 +52,11 @@ async def resolve_exception(state: DealState, ctx: NodeContext) -> dict[str, Any
         prompt_version=version,
     )
     draft = f"{result.output.subject}\n\n{result.output.body}"
-    return {"amendment_draft": draft, "resolve_attempts": state.resolve_attempts + 1,
-            "served_by": [result.use]}
+    return {
+        "amendment_draft": draft,
+        "resolve_attempts": state.resolve_attempts + 1,
+        "served_by": [result.use],
+    }
 
 
 async def await_corrected_doc(state: DealState, ctx: NodeContext) -> dict[str, Any]:

@@ -188,15 +188,30 @@ def merge_flags(existing: list[Flag], new: list[Flag]) -> list[Flag]:
 
 
 def merge_doc_refs(existing: list[DocRef], new: list[DocRef]) -> list[DocRef]:
-    merged = {d.doc_id: d for d in existing}
-    merged.update({d.doc_id: d for d in new})
+    old_refs = [d if isinstance(d, DocRef) else DocRef.model_validate(d) for d in existing]
+    new_refs = [d if isinstance(d, DocRef) else DocRef.model_validate(d) for d in new]
+    merged = {d.doc_id: d for d in old_refs}
+    merged.update({d.doc_id: d for d in new_refs})
     return sorted(merged.values(), key=lambda d: d.doc_id)
+
+
+def merge_pending_doc(
+    existing: DocRef | None, new: DocRef | dict[str, Any] | None
+) -> DocRef | None:
+    if new is None:
+        return existing
+    return new if isinstance(new, DocRef) else DocRef.model_validate(new)
 
 
 def merge_last_wins(existing: str | None, new: str | None) -> str | None:
     """Reducer for scalar operational fields written by parallel branches:
     last write wins (a failure is a failure)."""
     return new if new is not None else existing
+
+
+def merge_first_non_none(existing: str | None, new: str | None) -> str | None:
+    """Keep the first escalation cause so later merges cannot hide it."""
+    return existing if existing is not None else new
 
 
 def merge_model_uses(existing: list[ModelUse], new: list[ModelUse]) -> list[ModelUse]:
@@ -350,9 +365,9 @@ class DealState(BaseModel):
     # step — last write wins.
     fatal_error: Annotated[str | None, merge_last_wins] = None
     # set by the escalate node; the report/UX reads it
-    escalation_reason: Annotated[str | None, merge_last_wins] = None
+    escalation_reason: Annotated[str | None, merge_first_non_none] = None
     # Send() carrier for extract_doc fan-out (never merged from node updates)
-    pending_doc: DocRef | None = None
+    pending_doc: Annotated[DocRef | None, merge_pending_doc] = None
 
     # --- derived helpers (never serialized differently) ---
 
