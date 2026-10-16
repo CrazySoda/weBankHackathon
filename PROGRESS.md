@@ -100,9 +100,9 @@ Updated: 2026-10-15 (baseline re-verified green: pytest 0 failures + 4 env-gated
 
 
 1. **Screen Recording for Competition Video**:
-   Follow `docs/DEMO_VIDEO_SCRIPT.md` to record the 3-minute video covering the Hero Discrepancy, UCP 600 amendment drafting, VAT calculation, and Passkey approval.
-2. **Pitch Deck Styling**:
-   Format the 10-slide deck from `docs/PITCH_DECK_CONTENT.md` into presentation slides.
+   Follow [`docs/DEMO_VIDEO_SCRIPT.md`](file:///d:/Projects/weBankHackathon/docs/DEMO_VIDEO_SCRIPT.md) to record the 5-minute video covering the Hero Discrepancy, UCP 600 amendment drafting, VAT calculation, Passkey approval, and live adversarial injection stress test.
+2. **Pitch Deck Presentation Deck Styled**:
+   Completed 10-minute, 12-slide interactive presentation deck in [`docs/presentation.html`](file:///d:/Projects/weBankHackathon/docs/presentation.html) and [`web/public/deck.html`](file:///d:/Projects/weBankHackathon/web/public/deck.html) with 10-min presenter timer, speaker script drawer (<kbd>S</kbd>), fullscreen (<kbd>F</kbd>), and Print-to-PDF support.
 3. **Live Proxy Smoke Test (Optional / Live Mode)**:
    If testing live models via Docker/WSL, supply `DEEPSEEK_API_KEY` / `ANTHROPIC_API_KEY` in `.env` and run `docker compose up`.
 4. **Portal Submission**:

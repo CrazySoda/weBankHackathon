@@ -125,7 +125,7 @@ In ClearTrade, AI is neither a passive text summarizer nor an unchecked black-bo
 - [x] **Source Code Repository:** Clean git history, zero API keys or secrets, pinned `uv.lock`.
 - [x] **Local Exclusions Intact:** Local notes and configuration files excluded via `.git/info/exclude`.
 - [x] **Security Self-Assessment Report:** Comprehensive threat model in [`docs/SECURITY_SELF_ASSESSMENT_REPORT.md`](file:///d:/Projects/weBankHackathon/docs/SECURITY_SELF_ASSESSMENT_REPORT.md).
-- [x] **Pitch Deck & Speaker Script:** 10-slide deck with full talk track in [`docs/PITCH_DECK_CONTENT.md`](file:///d:/Projects/weBankHackathon/docs/PITCH_DECK_CONTENT.md).
-- [x] **Demo Video Script:** 3-minute time-coded recording plan in [`docs/DEMO_VIDEO_SCRIPT.md`](file:///d:/Projects/weBankHackathon/docs/DEMO_VIDEO_SCRIPT.md).
+- [x] **Pitch Deck & Speaker Script:** 10-minute, 12-slide presentation guide with full talk track in [`docs/PITCH_DECK_CONTENT.md`](file:///d:/Projects/weBankHackathon/docs/PITCH_DECK_CONTENT.md).
+- [x] **Demo Video Script:** 5-minute (300-second) time-coded recording plan in [`docs/DEMO_VIDEO_SCRIPT.md`](file:///d:/Projects/weBankHackathon/docs/DEMO_VIDEO_SCRIPT.md).
 - [x] **Web Console:** Built, styled, and verified with WebAuthn / Passkey approval enabled.
 - [x] **Domestic Model Support:** LiteLLM rendering configured for DeepSeek V3 and Qwen 2.5.
