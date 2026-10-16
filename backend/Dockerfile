@@ -16,6 +16,8 @@ COPY app ./app
 COPY prompts ./prompts
 COPY skills ./skills
 COPY seed/rules ./seed/rules
+# read by the one-click demo loader, POST /deals/seed/{id}
+COPY seed/deals/pdfs ./seed/deals/pdfs
 RUN uv sync --frozen --no-dev
 
 ENV PATH="/app/.venv/bin:$PATH"
