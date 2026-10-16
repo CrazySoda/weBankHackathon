@@ -1,6 +1,7 @@
 """LLM wrapper tests with a fake transport (no live proxy needed)."""
 
 import pytest
+from app.harness.budget import DealBudget
 from app.harness.llm import (
     DegradedModelError,
     LLMClient,
@@ -61,6 +62,17 @@ class TestHappyPath:
         assert r.use.completion_tokens == 20
         assert r.use.degraded is False
         assert r.use.alias == "fast"
+
+    async def test_records_usage_in_deal_budget(self):
+        budget = DealBudget("d1", max_steps=10, max_tokens=1000, max_cost_minor=100)
+        client = LLMClient(
+            base_url="http://litellm:4000",
+            api_key="sk-test",
+            _acreate=fake_transport([completion('{"answer": 1}', prompt=100, comp=20)]),
+            budget=budget,
+        )
+        await client.complete(alias="fast", system="s", messages=[], output_model=Out)
+        assert budget.tokens == 120
 
     async def test_schema_requested_on_first_attempt(self):
         calls: list[dict] = []

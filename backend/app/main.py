@@ -201,17 +201,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             **SYNTHETIC_BADGE,
         }
 
-    # Mount WeChat channel router (M8)
-    from app.channels.wechat.client import InMemoryTokenCache, WechatClient
-    from app.channels.wechat.router import WechatDeps, create_wechat_router
+    # Demo-grade structural SOTER endpoints stay disabled unless explicitly enabled.
+    if settings.feature_wechat:
+        from app.channels.wechat.client import InMemoryTokenCache, WechatClient
+        from app.channels.wechat.router import WechatDeps, create_wechat_router
 
-    wx_client = WechatClient(
-        app_id="wx_weBank_demo",
-        app_secret="demo_secret",
-        cache=InMemoryTokenCache(),
-    )
-    deps = WechatDeps(wx_client, runner, "demo_callback_token")
-    app.include_router(create_wechat_router(deps))
+        wx_client = WechatClient(
+            app_id="wx_weBank_demo",
+            app_secret="demo_secret",
+            cache=InMemoryTokenCache(),
+        )
+        deps = WechatDeps(wx_client, runner, "demo_callback_token")
+        app.include_router(create_wechat_router(deps))
 
     return app
 

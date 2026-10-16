@@ -67,8 +67,12 @@ class FakeLLM:
         name = model.__name__
         if name == "ExtractionOutput":
             return model()
-        if name == "ClassifierVerdict":
-            return model(injection_suspected=False)
+        if name == "ClassifierOutput":
+            import re
+
+            content = str(messages[-1]["content"]) if messages else ""
+            ids = re.findall(r"'doc_id': '([^']+)'", content)
+            return model(verdicts=[{"doc_id": doc_id} for doc_id in ids])
         if name == "PlanOutput":
             return model(
                 chosen_skills=["lc-ucp600-check", "cn-export-vat-refund"],

@@ -1,5 +1,6 @@
 """Reducer tests: state merge semantics."""
 
+from app.graph.nodes.verify import Verdict, _verdicts_by_finding
 from app.graph.state import (
     EvidenceRef,
     ExtractedDoc,
@@ -8,6 +9,7 @@ from app.graph.state import (
     SourceRef,
     merge_by_check_id,
     merge_by_doc_hash,
+    merge_first_non_none,
 )
 
 
@@ -88,3 +90,16 @@ class TestMergeByCheckId:
     def test_sorted_deterministically(self):
         out = merge_by_check_id([], [finding("c2", "r1"), finding("c1", "r2"), finding("c1", "r1")])
         assert [(f.check_id, f.rule_id) for f in out] == [("c1", "r1"), ("c1", "r2"), ("c2", "r1")]
+
+
+def test_escalation_reason_keeps_first_cause():
+    assert merge_first_non_none("initial cause", "later cause") == "initial cause"
+    assert merge_first_non_none(None, "first cause") == "first cause"
+
+
+def test_batched_verdicts_are_keyed_by_check_and_rule():
+    first = Verdict(check_id="sanctions-screen", rule_id="party-a", upheld=True, reason="a")
+    second = Verdict(check_id="sanctions-screen", rule_id="party-b", upheld=False, reason="b")
+    indexed = _verdicts_by_finding([first, second])
+    assert indexed[("sanctions-screen", "party-a")] is first
+    assert indexed[("sanctions-screen", "party-b")] is second

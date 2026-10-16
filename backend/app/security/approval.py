@@ -23,7 +23,8 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 
 REPLAY_WINDOW_S = 300
 
-# Fixed Ed25519 keypair registered automatically in CLEARTRADE_ENV=demo
+# DEMO FIXTURE, NOT A SECRET. This committed key is forgeable by anyone with
+# the repository and must never be used outside a local synthetic demo.
 DEMO_APPROVER_ID = "owner-1"
 DEMO_PUBLIC_KEY_B64 = "5OT3skRSnCuBbaeqC7PCGVBpm5AEtjGMQd7hEaC3Q6U="
 DEMO_PRIVATE_KEY_B64 = "KzeqNDJ6tzl6HXK6npZcgkxon1xSpQnzGK9WNfBXGFU="

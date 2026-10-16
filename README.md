@@ -36,6 +36,13 @@ untrusted data everywhere. Approval is an ed25519 signature over a canonical
 hash of exactly what the approval screen rendered; execution is idempotent and
 sandbox-only.
 
+**Demo approval and WeChat limits:** the committed Ed25519 signing key is a
+public demo fixture, not a secret or production credential. The WeChat adapter
+uses demo-grade structural SOTER checks; it does not verify biometric
+attestation with WeChat's server API. Its `/wechat/*` routes are disabled by
+default and mount only when `feature_wechat` is enabled. Do not treat this as
+production authentication.
+
 ## Tooling: [uv](https://docs.astral.sh/uv/) + one Makefile
 
 **`make help` lists every target.** Common ones:
@@ -96,13 +103,13 @@ backend/skills/       9 skills: SKILL.md + curated rules.yaml + tools.txt +
                       examples/ (validated against node tool allowlists)
 backend/prompts/      16 versioned per-node prompts
 web/                  React review console (Vite + TS + React Query)
-miniprogram/          WeChat Mini Program (pages pending; adapter code is not mounted)
+miniprogram/          WeChat Mini Program (pages pending; adapter mounts only when enabled)
 evals/promptfoo/      red-team suite (OWASP ASI01/02/07 cases + controls)
 ```
 
 ## Status
 
 See [PROGRESS.md](PROGRESS.md). The local demo and offline baseline are
-implemented, but current post-review changes have not been rerun through the
-gates. Runtime Postgres persistence, authenticated users, real WebAuthn/SOTER,
-and Mini Program pages remain incomplete.
+implemented; the pre-submission fixes are checked in and the tracked offline
+gates pass. Runtime Postgres persistence, authenticated users, real
+WebAuthn/SOTER verification, and Mini Program pages remain incomplete.

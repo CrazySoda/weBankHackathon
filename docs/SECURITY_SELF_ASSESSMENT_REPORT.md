@@ -20,6 +20,8 @@ Financial institutions operating in cross-border trade finance face an acute dil
 
 This report provides the formal threat model, security invariants, and OWASP Top 10 for LLM Applications (ASI01–ASI10) evaluation for ClearTrade.
 
+**Demo-grade structural SOTER disclosure:** the repository's WeChat adapter accepts a client-supplied SOTER result and validates its structure and deal binding; it does not call WeChat's server-side `checkAliveSignature` verification API. The `/wechat/*` routes are disabled by default and mount only when `feature_wechat` is explicitly enabled. This adapter is a demo scaffold, not production authentication or proof of biometric verification. The local Ed25519 approver key is a public demo fixture and can be forged by anyone with the repository.
+
 ---
 
 ## 2. Core Security Invariants (Non-Negotiable Architecture)

@@ -101,6 +101,10 @@ async def read_stream(client: httpx.AsyncClient, deal_id: str) -> list[tuple[str
 
 @pytest.mark.asyncio
 class TestFullFlow:
+    async def test_wechat_routes_are_disabled_by_default(self, app_client):
+        app, _ = app_client
+        assert not any(route.path.startswith("/wechat/") for route in app.routes)
+
     async def test_health(self, app_client):
         app, _ = app_client
         async with httpx.AsyncClient(
@@ -110,6 +114,80 @@ class TestFullFlow:
             assert r.status_code == 200
             assert r.json()["status"] == "ok"
             assert r.json()["synthetic_data"] is True
+
+    async def test_corrected_document_resume_through_http(self, app_client):
+        app, runner = app_client
+        fake = runner.llm
+
+        def correction_hint(messages):
+            content = str(messages[-1]["content"])
+            if "letter_of_credit" in content:
+                return ExtractionOutput(kind="letter_of_credit", fields=LC_FIELDS)
+            if "commercial_invoice" in content:
+                fields = list(INV_FIELDS)
+                if "ORIGINAL-DISCREPANCY" in content:
+                    fields[0] = fields[0].model_copy(
+                        update={"value": "120000.00", "snippet": "USD 120,000.00"}
+                    )
+                return ExtractionOutput(kind="commercial_invoice", fields=fields)
+            return ExtractionOutput(kind="unknown", fields=[])
+
+        fake.hooks["ExtractionOutput"] = correction_hint
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=60.0
+        ) as client:
+            created = await client.post("/deals")
+            deal_id = created.json()["deal_id"]
+            for name, kind, text in [
+                ("lc.pdf", "letter_of_credit", "LETTER OF CREDIT USD 100,000.00"),
+                (
+                    "invoice.pdf",
+                    "commercial_invoice",
+                    "ORIGINAL-DISCREPANCY COMMERCIAL INVOICE USD 120,000.00",
+                ),
+            ]:
+                response = await client.post(
+                    f"/deals/{deal_id}/documents",
+                    files={"file": (name, make_pdf([text]), "application/pdf")},
+                    data={"kind": kind},
+                )
+                assert response.status_code == 200
+
+            await client.post(f"/deals/{deal_id}/run")
+            first_events = await read_stream(client, deal_id)
+            assert any(
+                kind == "interrupt" and event["payload"].get("kind") == "await_corrected_doc"
+                for kind, event in first_events
+            )
+
+            uploaded = await client.post(
+                f"/deals/{deal_id}/documents",
+                files={
+                    "file": (
+                        "corrected-invoice.pdf",
+                        make_pdf(["CORRECTED COMMERCIAL INVOICE USD 100,000.00"]),
+                        "application/pdf",
+                    )
+                },
+                data={"kind": "commercial_invoice"},
+            )
+            assert uploaded.status_code == 200
+            resumed = await client.post(
+                f"/deals/{deal_id}/resume", json={"action": "corrected_document"}
+            )
+            assert resumed.status_code == 200
+            second_events = await read_stream(client, deal_id)
+            assert second_events[-1][0] == "done"
+            assert not any(kind == "error" for kind, _ in second_events)
+
+    async def test_deal_budget_is_reused_across_graph_contexts(self, app_client):
+        _, runner = app_client
+        record = runner.create_deal("demo-tenant")
+        record.budget.tokens = 123
+        first = runner._graph_ctx(record.state.deal_id)
+        second = runner._graph_ctx(record.state.deal_id)
+        assert first.budget is second.budget is record.budget
+        assert second.budget.tokens == 123
 
     async def test_upload_run_stream_resume(self, app_client, tmp_path: Path, owner_key):
         app, _ = app_client

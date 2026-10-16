@@ -50,7 +50,9 @@ def after_screen(state: DealState) -> RouterOutcome:
         return "escalate"
     extracted_ids = {d.doc_id for d in state.extracted}
     if len(extracted_ids) != len(state.documents) or any(
-        not d.fields or d.low_confidence or any(f.confidence < 0.7 for f in d.fields)
+        not d.fields
+        or d.low_confidence
+        or any(f.name in {"total_amount", "beneficiary"} and f.confidence < 0.7 for f in d.fields)
         for d in state.extracted
     ):
         return "escalate"

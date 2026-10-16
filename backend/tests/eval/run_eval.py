@@ -72,8 +72,12 @@ class NoopLLM:
             out = output_model(verdicts=[])
         elif name == "AmendmentDraft":
             out = output_model(subject="Amendment", body="Please correct the documents.")
-        elif name == "ClassifierVerdict":
-            out = output_model(injection_suspected=False)
+        elif name == "ClassifierOutput":
+            import re
+
+            body = str(kwargs["messages"][-1]["content"])
+            ids = re.findall(r"'doc_id': '([^']+)'", body)
+            out = output_model(verdicts=[{"doc_id": doc_id} for doc_id in ids])
         elif name == "ExtractionOutput":
             out = output_model(kind="unknown", fields=[])
         else:

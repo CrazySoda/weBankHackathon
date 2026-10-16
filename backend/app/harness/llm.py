@@ -22,6 +22,7 @@ from typing import Any, Protocol, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from app.graph.state import ModelUse
+from app.harness.budget import DealBudget
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -94,6 +95,7 @@ class LLMClient:
     timeout_s: float = 35.0
     _acreate: Any = None  # injected transport; defaults to AsyncOpenAI
     usage_log: list[ModelUse] = field(default_factory=list)
+    budget: DealBudget | None = None
 
     def __post_init__(self) -> None:
         if self._acreate is None:
@@ -201,6 +203,8 @@ class LLMClient:
             prompt_version=prompt_version,
         )
         self.usage_log.append(use)
+        if self.budget is not None:
+            self.budget.record_usage(use.prompt_tokens, use.completion_tokens, use.cost_minor)
         return use
 
 

@@ -1,6 +1,26 @@
 # PROGRESS
 
-Updated: 2026-10-15 (baseline re-verified green: pytest 0 failures + 4 env-gated skips, ruff clean, mypy strict clean, calc 100%)
+Updated: 2026-10-17 (pre-submission fixes and Windows-side quality gates re-verified)
+
+## 2026-10-17 pre-submission fixes
+
+- Corrected-document resume now retains typed document references; document and
+  fan-out reducers normalize serialized references, and `pending_doc` has an
+  identity-safe reducer.
+- Verification keeps grounded non-fixable trade facts open for escalation;
+  verifiable findings are checked in one reasoner call. Injection screening
+  classifies all PDF documents in one fast-model call and blocks if a document
+  receives no verdict.
+- Per-deal token/cost/step counters now survive graph resume, and LLM usage is
+  charged to the deal budget. WeChat routes mount only with `feature_wechat`;
+  the security report discloses the demo-grade structural SOTER adapter and
+  the committed approval key is labeled as a public fixture.
+- `after_screen` escalates on low-confidence summaries or soft required fields
+  (`total_amount`, `beneficiary`), while allowing isolated soft noncritical fields.
+- Windows-side verification: full tracked pytest suite passed (4 env-gated
+  skips), strict mypy passed, calc branch coverage 100%, and Ruff passed after
+  import sorting. The external `.workbuddy/tests` bundle was not present in
+  this checkout; equivalent tracked regressions were added.
 
 ## Milestone status
 
