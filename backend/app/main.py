@@ -27,6 +27,10 @@ from app.config import Settings, get_settings
 from app.security.storage import DocumentStore
 
 SYNTHETIC_BADGE = {"synthetic_data": True}  # every response carries the demo label (rule 0.10)
+DEMO_SIGNER_NOTICE = (
+    "DEMO SHORTCUT: signed by the server with the committed demo key, not by a human "
+    "passkey. Local synthetic demo only."
+)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -167,7 +171,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         sig = sign_approval(approval, priv_key)
         signed = approval.model_copy(update={"signature_b64": sig})
-        return {"approval": signed.model_dump(), **SYNTHETIC_BADGE}
+        # DEMO SHORTCUT (DECISIONS #20): the server signs with the committed demo key.
+        # It is labelled in the response and the UI and is refused outside env=demo.
+        return {
+            "approval": signed.model_dump(),
+            "demo_shortcut": True,
+            "notice": DEMO_SIGNER_NOTICE,
+            **SYNTHETIC_BADGE,
+        }
 
     @app.post("/deals/seed/{seed_id}")
     async def load_seed_deal(seed_id: str) -> dict[str, Any]:

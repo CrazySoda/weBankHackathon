@@ -83,7 +83,7 @@ function HumanApprovalBar({
         await api.resume(state.deal_id, {
           action: "approve",
           approval: res.approval,
-          note: note || "Approved via WebAuthn passkey",
+          note: note || "Approved via DEMO signer (shortcut, not a human passkey)",
         });
       } else {
         await api.resume(state.deal_id, { action: "reject", note });
@@ -178,6 +178,7 @@ function HumanApprovalBar({
       </div>
 
       <div className="row">
+        <span className="chip chip-sev-warn" title="Signed by the server with a committed demo key">DEMO SIGNER</span>
         <input
           style={{ flex: 1, minWidth: 260 }}
           placeholder="Note (required for reject — why you are declining)"
@@ -189,7 +190,7 @@ function HumanApprovalBar({
           disabled={busy !== null}
           onClick={() => act("approve")}
         >
-          {busy === "approve" ? "Signing & Executing…" : "Approve with Passkey (Verified)"}
+          {busy === "approve" ? "Signing & Executing…" : "Approve with DEMO signer"}
         </button>
         <button
           className="btn btn-reject"
@@ -201,7 +202,7 @@ function HumanApprovalBar({
       </div>
       {error && <p className="error-text">{error}</p>}
       <p className="faint" style={{ fontSize: 12, marginBottom: 0 }}>
-        Approval verifies a cryptographic Ed25519 signature over canonical deal hash (WebAuthn / WeChat SOTER). Pre-registered demo key active.
+        DEMO SHORTCUT: this button has the server sign with a committed demo key, so it is not a human passkey. The Ed25519 signature over the canonical deal hash is still verified. Production uses WebAuthn / WeChat SOTER signers that keep their private keys client-side. Synthetic data only.
       </p>
     </div>
   );

@@ -319,7 +319,8 @@ export const api = {
     request<DealDetail>(`/deals/${encodeURIComponent(dealId)}`),
 
   signDemo: (dealId: string) =>
-    request<{ approval: ApprovalStub }>(`/deals/${encodeURIComponent(dealId)}/sign_demo`, {
+    request<{ approval: ApprovalStub; demo_shortcut: boolean; notice: string }>(
+      `/deals/${encodeURIComponent(dealId)}/sign_demo`, {
       method: "POST",
     }),
 
