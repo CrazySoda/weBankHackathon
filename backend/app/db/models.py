@@ -164,3 +164,21 @@ class AuditEventRow(Base):
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     prev_hash: Mapped[str] = mapped_column(String(64))
     hash: Mapped[str] = mapped_column(String(64), index=True)
+
+
+class DealSnapshot(Base):
+    """Latest DealState (+ budget counters) per deal, so the API survives a restart.
+
+    The graph's own progress (interrupts, parked approvals) lives in the LangGraph
+    Postgres checkpointer; this is what ``GET /deals/{id}`` serves.
+    """
+
+    __tablename__ = "deal_snapshot"
+
+    deal_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), index=True)  # RLS key
+    state: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    budget: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

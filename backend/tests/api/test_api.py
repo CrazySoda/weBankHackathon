@@ -132,6 +132,8 @@ class TestFullFlow:
         assert "DEMO SHORTCUT" in body["notice"]
         assert body["synthetic_data"] is True
         approval = SignedApproval.model_validate(body["approval"])
+        # the signed audit record must not claim a passkey either
+        assert approval.method == "demo_key"
         assert approval.deal_hash == deal_hash(approval_render(runner.deals[deal_id].state))
 
     async def test_demo_signer_refused_outside_demo_env(self, tmp_path: Path):
@@ -209,6 +211,18 @@ class TestFullFlow:
             second_events = await read_stream(client, deal_id)
             assert second_events[-1][0] == "done"
             assert not any(kind == "error" for kind, _ in second_events)
+
+            # the pre-correction finding must be superseded, not merely outranked
+            state = (await client.get(f"/deals/{deal_id}")).json()["state"]
+            stale = [f for f in state["findings"] if f["rule_id"] == "lc-invoice-exceeds-lc"]
+            assert all(f["status"] != "open" for f in stale), stale
+            assert not [
+                f for f in state["findings"] if f["severity"] == "block" and f["status"] == "open"
+            ]
+            assert any(
+                kind == "interrupt" and event["payload"].get("kind") == "human_approval"
+                for kind, event in second_events
+            )
 
     async def test_deal_budget_is_reused_across_graph_contexts(self, app_client):
         _, runner = app_client

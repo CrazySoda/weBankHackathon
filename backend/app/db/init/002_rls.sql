@@ -24,7 +24,8 @@ DO $$
 DECLARE
     t text;
 BEGIN
-    FOREACH t IN ARRAY ARRAY['trade_deal', 'document', 'finding', 'fx_quote', 'audit_event']
+    FOREACH t IN ARRAY ARRAY['trade_deal', 'document', 'finding', 'fx_quote', 'audit_event',
+                         'deal_snapshot']
     LOOP
         EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
         EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);

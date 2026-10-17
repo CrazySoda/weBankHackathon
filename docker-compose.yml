@@ -95,6 +95,11 @@ services:
       SYNC_DATABASE_URL: postgresql+psycopg://cleartrade:cleartrade@postgres:5432/cleartrade
       REDIS_URL: redis://valkey:6379/0
       LITELLM_BASE_URL: http://litellm:4000
+      # deals, audit chain and graph checkpoints in Postgres: a restart loses nothing
+      PERSIST_DEALS: "true"
+    volumes:
+      # uploaded documents (content-addressed); parked deals still need their PDFs
+      - uploads:/app/data/uploads
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -132,3 +137,4 @@ services:
 
 volumes:
   pgdata:
+  uploads:

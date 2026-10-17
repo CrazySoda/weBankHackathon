@@ -26,7 +26,7 @@ PROVIDER_TERMS = [
 
 
 def _lc_amount(state: DealState) -> int | None:
-    for d in state.extracted:
+    for d in state.current_extracted:
         if d.kind == "letter_of_credit":
             f = d.get("lc_amount") or d.get("total_amount")
             if f is None:
@@ -46,7 +46,7 @@ def credit_offer(state: DealState, ctx: NodeContext) -> dict[str, Any]:
         return {}
     face = Money(minor=minor, currency="USD")
     tenor = DEFAULT_TENOR
-    for d in state.extracted:
+    for d in state.current_extracted:
         t = d.get("lc_tenor_days")
         if t is not None:
             with contextlib.suppress(ValueError):

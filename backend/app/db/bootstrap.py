@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sqlalchemy import Engine
+from sqlalchemy import Engine, create_engine, event
 
 from app.db.models import Base
 
@@ -21,8 +21,27 @@ def apply_schema(engine: Engine) -> None:
     # simple query), so the ``%I`` in its format() calls are not read as placeholders.
     raw = engine.raw_connection()
     try:
-        with raw.cursor() as cur:
+        cur = raw.cursor()
+        try:
             cur.execute(RLS_SQL.read_text(encoding="utf-8"))
+        finally:
+            cur.close()
         raw.commit()
     finally:
         raw.close()
+
+
+def app_role_engine(url: str) -> Engine:
+    """Engine that runs as the unprivileged ``cleartrade_app`` role, so row-level
+    security and the audit REVOKEs actually bind. The owner/superuser the URL logs in
+    as bypasses both, so the application must never query as that role directly."""
+    engine = create_engine(url, pool_pre_ping=True)
+
+    @event.listens_for(engine, "connect")
+    def _assume_app_role(dbapi_conn, _record):  # type: ignore[no-untyped-def]
+        cur = dbapi_conn.cursor()
+        cur.execute("SET ROLE cleartrade_app")
+        cur.close()
+        dbapi_conn.commit()
+
+    return engine

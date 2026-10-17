@@ -39,10 +39,19 @@ def deal_hash(render: dict[str, Any]) -> str:
     return sha256_hex(canonical_json(render))
 
 
+def _payee(state: DealState) -> str | None:
+    for d in state.current_extracted:
+        if d.kind == "commercial_invoice":
+            beneficiary = d.get("beneficiary")
+            if beneficiary is not None:
+                return str(beneficiary.value)
+    return None
+
+
 def approval_render(state: DealState) -> dict[str, Any]:
     """Canonical public approval screen data shared by API and graph."""
     amount_minor = None
-    for doc in state.extracted:
+    for doc in state.current_extracted:
         field = doc.get("total_amount") if doc.kind == "commercial_invoice" else None
         if field is not None:
             from decimal import Decimal, InvalidOperation
@@ -77,14 +86,7 @@ def approval_render(state: DealState) -> dict[str, Any]:
         "finance_offer": (
             state.finance_offer.model_dump(mode="json") if state.finance_offer else None
         ),
-        "payee": next(
-            (
-                str(d.get("beneficiary").value)
-                for d in state.extracted
-                if d.kind == "commercial_invoice" and d.get("beneficiary") is not None
-            ),
-            None,
-        ),
+        "payee": _payee(state),
         "amount_minor": amount_minor,
         "policy": state.policy.model_dump(mode="json") if state.policy else None,
     }

@@ -246,7 +246,7 @@ def run_lc_checks(lc: dict[str, object], invoice: dict[str, object]) -> list[Dis
         (check_quantity, (lc.get(F_QUANTITY), invoice.get(F_QUANTITY))),
         (check_beneficiary, (lc.get(F_BENEFICIARY), invoice.get(F_BENEFICIARY))),
     ]:
-        d = check(*args)  # type: ignore[arg-type]
+        d = check(*args)  # type: ignore[operator]
         if d is not None:
             out.append(d)
     return out

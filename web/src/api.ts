@@ -142,7 +142,7 @@ export interface PolicyDecision {
 export interface SignedApproval {
   deal_hash: string;
   approver_id: string;
-  method: "webauthn_passkey" | "wechat_soter" | "pin_otp";
+  method: "webauthn_passkey" | "wechat_soter" | "pin_otp" | "demo_key";
   signature_b64: string;
   signed_at: string;
   nonce: string;
@@ -272,7 +272,7 @@ export type StreamEvent = {
 export interface ApprovalStub {
   deal_hash: string;
   approver_id: string;
-  method: "webauthn_passkey";
+  method: "webauthn_passkey" | "demo_key";
   signature_b64: string;
   signed_at: string;
   nonce: string;

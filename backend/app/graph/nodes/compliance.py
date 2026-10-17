@@ -18,7 +18,7 @@ from app.rules.checks import run_lc_checks
 
 
 def _doc_of_kind(state: DealState, kind: str) -> ExtractedDoc | None:
-    return next((d for d in state.extracted if d.kind == kind), None)
+    return next((d for d in state.current_extracted if d.kind == kind), None)
 
 
 class SanctionsVerdict(BaseModel):
@@ -63,7 +63,7 @@ async def compliance(state: DealState, ctx: NodeContext) -> dict[str, Any]:
         if name.lower() in synthetic_list:
             evidence = [
                 EvidenceRef(doc_id=doc.doc_id, source=field.source, quote=field.source.snippet)
-                for doc in state.extracted
+                for doc in state.current_extracted
                 if doc.kind == "letter_of_credit"
                 for field in doc.fields
                 if field.name in {"beneficiary", "applicant"} and field.source.snippet
