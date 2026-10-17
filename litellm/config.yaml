@@ -1,18 +1,18 @@
 # RENDERED FILE — do not edit by hand.
-# Generated from env by app/harness/litellm_render.py (provider: anthropic).
+# Generated from env by app/harness/litellm_render.py (provider: openai).
 # Secrets are never written here: only os.environ/ references.
 
 model_list:
-  # WARNING: no keys configured for anthropic (ANTHROPIC_API_KEYS unset); deployment relies on the ambient credential.
   - model_name: reasoner
     litellm_params:
-      model: anthropic/claude-sonnet-5-5
+      model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
+      api_key: os.environ/LLM_KEY_1
       max_tokens: 4096
       timeout: 30
-  # WARNING: no keys configured for anthropic (ANTHROPIC_API_KEYS unset); deployment relies on the ambient credential.
   - model_name: fast
     litellm_params:
-      model: anthropic/claude-haiku-5-5
+      model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
+      api_key: os.environ/LLM_KEY_1
       max_tokens: 2048
       timeout: 30
 
@@ -32,4 +32,4 @@ general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
   database_url: os.environ/LITELLM_DB_URL
 
-# 2 deployment(s) rendered; provider=anthropic
+# 2 deployment(s) rendered; provider=openai

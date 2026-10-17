@@ -338,20 +338,17 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  demoSeed: (scenario: "clean" | "discrepancy" | "mismatch" | "injection") =>
+    request<{ deal_id: string; scenario: string }>(
+      `/deals/demo-seed/${encodeURIComponent(scenario)}`,
+      { method: "POST" },
+    ),
+
   audit: (dealId: string) =>
     request<AuditTrail>(`/deals/${encodeURIComponent(dealId)}/audit`),
 };
 
-/** Format integer minor units as a currency string. Never floats for money. */
-export function formatMoney(minor: number | null | undefined, currency = "USD"): string {
-  if (minor === null || minor === undefined || Number.isNaN(minor)) return "—";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(minor / 100);
-}
+export { formatMoney } from "./ui";
 
 /** Shorten a long hash for display. */
 export function shortHash(hash: string | null | undefined, n = 10): string {

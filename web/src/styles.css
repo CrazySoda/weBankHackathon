@@ -1,29 +1,62 @@
 /* ClearTrade review console — dark trading-desk aesthetic. */
 
 :root {
-  --bg: #0b0f14;
-  --bg-raised: #11161d;
-  --bg-card: #141b24;
-  --bg-hover: #1a2230;
-  --border: #232d3b;
+  --bg-base: #0b0f14;
+  --bg-surface: #11161d;
+  --bg-card: #161e29;
+  --bg-hover: #1c2635;
+  --border-subtle: #232d3b;
   --border-strong: #33405280;
+  --border-focus: #06b6d4;
   --text: #e6ebf2;
   --text-dim: #94a3b8;
   --text-faint: #64748b;
-  --accent: #38bdf8;
-  --accent-dim: #0ea5e933;
-  --green: #34d399;
-  --green-dim: #34d39922;
-  --amber: #fbbf24;
-  --amber-dim: #fbbf2422;
-  --red: #f87171;
-  --red-dim: #f8717122;
-  --slate: #94a3b8;
-  --slate-dim: #94a3b822;
-  --violet: #a78bfa;
-  --mono: "SFMono-Regular", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  --status-block: #f43f5e;
+  --status-block-dim: #f43f5e22;
+  --status-warn: #f59e0b;
+  --status-warn-dim: #f59e0b22;
+  --status-info: #94a3b8;
+  --status-info-dim: #94a3b822;
+  --status-pass: #10b981;
+  --status-pass-dim: #10b98122;
+  --accent-cyan: #06b6d4;
+  --accent-cyan-dim: #06b6d433;
+  --accent-violet: #8b5cf6;
+  --accent-violet-dim: #8b5cf622;
+
+  /* Aliases for backwards compatibility */
+  --bg: var(--bg-base);
+  --bg-raised: var(--bg-surface);
+  --border: var(--border-subtle);
+  --accent: var(--accent-cyan);
+  --accent-dim: var(--accent-cyan-dim);
+  --green: var(--status-pass);
+  --green-dim: var(--status-pass-dim);
+  --amber: var(--status-warn);
+  --amber-dim: var(--status-warn-dim);
+  --red: var(--status-block);
+  --red-dim: var(--status-block-dim);
+  --slate: var(--status-info);
+  --slate-dim: var(--status-info-dim);
+  --violet: var(--accent-violet);
+  --mono: "JetBrains Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
   --radius: 10px;
   --radius-sm: 6px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 * {
@@ -978,3 +1011,285 @@ tr.best td:first-child {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* ---------- pipeline visualizer ---------- */
+
+.pipeline-visualizer-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.pipeline-stages-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.pipeline-stage-block {
+  background: rgba(11, 15, 20, 0.5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.pipeline-stage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.pipeline-stage-header:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.pipeline-nodes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+}
+
+.pipeline-node-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: var(--mono);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.pipeline-node-chip .node-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.pipeline-node-chip .node-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pipeline-node-chip .node-elapsed {
+  font-size: 10px;
+  opacity: 0.75;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.pipeline-node-chip.status-idle {
+  opacity: 0.45;
+  color: var(--text-dim);
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+.pipeline-node-chip.status-active {
+  background: var(--accent-cyan-dim);
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 10px var(--accent-cyan-dim);
+}
+
+.pipeline-node-chip.status-done {
+  background: var(--status-pass-dim);
+  color: var(--status-pass);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.pipeline-node-chip.status-interrupted {
+  background: var(--status-warn-dim);
+  color: var(--status-warn);
+  border-color: var(--status-warn);
+  box-shadow: 0 0 8px var(--status-warn-dim);
+}
+
+.pipeline-node-chip.status-failed {
+  background: var(--status-block-dim);
+  color: var(--status-block);
+  border-color: var(--status-block);
+}
+
+.pipeline-node-chip.is-branch {
+  border-style: dashed !important;
+}
+
+.pipeline-node-chip.branch-unvisited {
+  opacity: 0.35;
+  border: 1px dashed var(--text-faint) !important;
+}
+
+/* ---------- demo scenarios & buttons ---------- */
+
+.demo-scenario-btn:hover:not(:disabled) {
+  background: var(--bg-hover) !important;
+  border-color: var(--accent-cyan) !important;
+  transform: translateY(-1px);
+}
+
+.badge-synthetic {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: var(--status-warn);
+}
+
+/* ---------- state views & skeletons ---------- */
+
+.state-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 24px;
+  background: var(--bg-card);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius);
+}
+
+.empty-icon-box {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  color: var(--accent-cyan);
+}
+
+.state-error-card {
+  background: rgba(244, 63, 94, 0.08);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+}
+
+.skeleton-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeleton-card {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.02) 25%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.02) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.8s infinite;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* ---------- modal animations & enhancements ---------- */
+
+.modal-overlay {
+  animation: modal-fade-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.modal-card {
+  animation: modal-pop 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes modal-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ---------- sidebar deal delete & list enhancements ---------- */
+
+.deal-item {
+  position: relative;
+  transition: all 0.15s ease;
+}
+
+.deal-item:hover .delete-deal-btn {
+  opacity: 0.8 !important;
+}
+
+.delete-deal-btn:hover {
+  opacity: 1 !important;
+  color: var(--status-block, #f43f5e) !important;
+  background: rgba(244, 63, 94, 0.15) !important;
+}
+
+/* ---------- executive header & ribbon responsiveness ---------- */
+
+@media (max-width: 900px) {
+  .pipeline-ribbon {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .pipeline-ribbon {
+    grid-template-columns: 1fr !important;
+  }
+}
+

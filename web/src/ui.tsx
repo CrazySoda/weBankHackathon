@@ -1,38 +1,102 @@
 import type { FindingStatus, Severity } from "./api";
+import {
+  ShieldAlert,
+  AlertTriangle,
+  Info,
+  CheckCircle2,
+  XCircle,
+  AlertOctagon,
+  Clock,
+  CheckCircle,
+  FileMinus,
+  FlaskConical,
+} from "lucide-react";
+
+/**
+ * Format money from integer minor units without float division.
+ * Accepts bigint, number, or string.
+ * Output format: "${currency} ${whole}${frac}" or "-${currency} ${whole}${frac}"
+ */
+export function formatMoney(
+  minor: bigint | number | string | null | undefined,
+  currency: string = "USD",
+): string {
+  let digits = 2;
+  try {
+    digits =
+      new Intl.NumberFormat("en-US", { style: "currency", currency }).resolvedOptions()
+        .maximumFractionDigits ?? 2;
+  } catch {
+    // Gracefully handle invalid or unrecognized currency codes without throwing
+    digits = 2;
+  }
+
+  if (minor === null || minor === undefined || minor === "") {
+    const frac = digits > 0 ? "." + "0".repeat(digits) : "";
+    return `${currency} 0${frac}`;
+  }
+
+  let v: bigint;
+  try {
+    v = BigInt(minor);
+  } catch {
+    const frac = digits > 0 ? "." + "0".repeat(digits) : "";
+    return `${currency} 0${frac}`;
+  }
+
+  const neg = v < 0n;
+  const s = (neg ? -v : v).toString().padStart(digits + 1, "0");
+  const whole = s.slice(0, s.length - digits).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const frac = digits > 0 ? "." + s.slice(-digits) : "";
+  return `${neg ? "-" : ""}${currency} ${whole}${frac}`;
+}
 
 export function SeverityChip({ severity }: { severity: Severity }) {
+  const Icon = severity === "block" ? ShieldAlert : severity === "warn" ? AlertTriangle : Info;
   return (
     <span className={`chip chip-sev-${severity}`}>
-      <span className="dot" />
-      {severity}
+      <Icon size={13} aria-hidden="true" />
+      <span>{severity}</span>
     </span>
   );
 }
 
 export function StatusChip({ status }: { status: FindingStatus }) {
-  return <span className={`chip chip-status-${status}`}>{status}</span>;
+  const Icon = status === "fixed" ? CheckCircle : status === "waived" ? FileMinus : Clock;
+  return (
+    <span className={`chip chip-status-${status}`}>
+      <Icon size={12} aria-hidden="true" />
+      <span>{status}</span>
+    </span>
+  );
 }
 
 export function SyntheticChip() {
-  return <span className="chip chip-synthetic">synthetic</span>;
+  return (
+    <span className="chip chip-synthetic" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      <FlaskConical size={11} aria-hidden="true" />
+      <span>SYNTHETIC DATA</span>
+    </span>
+  );
 }
 
 export function DecisionChip({ decision }: { decision: string }) {
-  return <span className={`chip chip-decision-${decision}`}>{decision}</span>;
+  const Icon =
+    decision === "allow"
+      ? CheckCircle2
+      : decision === "deny"
+        ? XCircle
+        : AlertOctagon;
+  return (
+    <span className={`chip chip-decision-${decision}`}>
+      <Icon size={13} aria-hidden="true" />
+      <span>{decision}</span>
+    </span>
+  );
 }
 
 export function confidenceColor(c: number): string {
-  if (c >= 0.85) return "#34d399";
-  if (c >= 0.6) return "#fbbf24";
-  return "#f87171";
-}
-
-/** Clean, compact y-axis tick label for money minor units. */
-export function compactMoney(minor: number, currency = "$"): string {
-  const units = minor / 100;
-  const abs = Math.abs(units);
-  const sign = units < 0 ? "-" : "";
-  if (abs >= 1_000_000) return `${sign}${currency}${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}${currency}${(abs / 1_000).toFixed(1)}K`;
-  return `${sign}${currency}${abs.toFixed(0)}`;
+  if (c > 0.9) return "var(--status-pass, #10b981)";
+  if (c >= 0.7) return "var(--status-warn, #f59e0b)";
+  return "var(--status-block, #f43f5e)";
 }

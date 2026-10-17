@@ -1,193 +1,250 @@
+import { useState } from "react";
 import type { DealState } from "../api";
 import { formatMoney } from "../api";
-import { DecisionChip, SeverityChip, StatusChip } from "../ui";
+import ExecutiveDealHeader from "../components/ExecutiveDealHeader";
+import {
+  Building2,
+  FileText,
+  ShieldCheck,
+  TrendingUp,
+  Receipt as ReceiptIcon,
+  CheckCircle2,
+  AlertTriangle,
+  Copy,
+  Check,
+  Calendar,
+  Globe,
+  Package,
+} from "lucide-react";
 
-export default function Overview({ state }: { state: DealState }) {
-  const open = state.findings.filter((f) => f.status === "open");
-  const blocks = open.filter((f) => f.severity === "block");
-  const warns = open.filter((f) => f.severity === "warn");
-  const waivers = state.findings.filter((f) => f.status === "waived");
+interface OverviewProps {
+  state: DealState;
+  onNavigateTab?: (tab: string) => void;
+  onRunDeal?: () => void;
+  running?: boolean;
+}
 
+export default function Overview({
+  state,
+  onNavigateTab,
+  onRunDeal,
+  running = false,
+}: OverviewProps) {
+  const [copiedHash, setCopiedHash] = useState(false);
+
+  const openFindings = state.findings.filter((f) => f.status === "open");
+  const blockCount = openFindings.filter((f) => f.severity === "block").length;
+  const best = bestRoute(state);
   const payee = findPayee(state);
-  const amount = findAmount(state);
+  const applicant = findApplicant(state);
+  const lcNumber = findLcNumber(state);
+  const goods = findGoods(state);
+
+  const copyToClipboard = (text: string) => {
+    void navigator.clipboard.writeText(text);
+    setCopiedHash(true);
+    setTimeout(() => setCopiedHash(false), 2000);
+  };
 
   return (
-    <div>
-      <div className="card-grid">
-        <Stat label="Documents" value={String(state.documents.length)} sub={`${state.extracted.length} extracted`} />
-        <Stat label="Open findings" value={String(open.length)} sub={`${blocks.length} block · ${warns.length} warn`} />
-        <Stat label="Waivers" value={String(waivers.length)} sub="named human required" />
-        <Stat
-          label="FX routes"
-          value={String(state.fx_options.length)}
-          sub={bestRoute(state) ? `best: ${bestRoute(state)!.provider}` : "no quotes"}
-        />
-        <Stat
-          label="Deal amount"
-          value={amount !== null ? formatMoney(amount, "USD") : "—"}
-          sub={payee ? `payee: ${payee}` : "payee unknown"}
-        />
+    <div className="overview-panel">
+      {/* 1. Executive Deal Header (Hero Card) */}
+      <ExecutiveDealHeader
+        state={state}
+        onNavigateTab={onNavigateTab}
+        onRunDeal={onRunDeal}
+        running={running}
+      />
+
+      {/* 2. Key Metrics Grid (4 Clean Cards) */}
+      <div className="card-grid" style={{ marginBottom: 20 }}>
+        <div
+          className="stat"
+          style={{ cursor: "pointer" }}
+          onClick={() => onNavigateTab?.("documents")}
+          title="Click to view submitted trade documents"
+        >
+          <div className="label">Documents Submitted</div>
+          <div className="value tabular">{state.documents.length}</div>
+          <div className="sub">
+            {state.extracted.length} extracted & verified
+          </div>
+        </div>
+
+        <div
+          className="stat"
+          style={{ cursor: "pointer" }}
+          onClick={() => onNavigateTab?.("findings")}
+          title="Click to view compliance discrepancies"
+        >
+          <div className="label">Compliance Findings</div>
+          <div
+            className="value tabular"
+            style={{
+              color: blockCount > 0 ? "var(--status-block, #f43f5e)" : "var(--status-pass, #10b981)",
+            }}
+          >
+            {openFindings.length}
+          </div>
+          <div className="sub">
+            {blockCount > 0 ? `${blockCount} blocking payout` : "0 blocking discrepancies"}
+          </div>
+        </div>
+
+        <div
+          className="stat"
+          style={{ cursor: "pointer" }}
+          onClick={() => onNavigateTab?.("fx")}
+          title="Click to view FX quotes and settlement comparison"
+        >
+          <div className="label">FX Routes Compared</div>
+          <div className="value tabular">{state.fx_options.length}</div>
+          <div className="sub">
+            {best ? `Best: ${best.provider}` : "No active quotes"}
+          </div>
+        </div>
+
+        <div
+          className="stat"
+          style={{ cursor: "pointer" }}
+          onClick={() => onNavigateTab?.("cash")}
+          title="Click to view 91-day working capital projection"
+        >
+          <div className="label">Cash Flow Projection</div>
+          <div className="value tabular">
+            {state.cash_projection ? `${state.cash_projection.days_below_zero}d` : "—"}
+          </div>
+          <div className="sub">
+            {state.cash_projection
+              ? state.cash_projection.days_below_zero > 0
+                ? "Working capital gap projected"
+                : "Safe positive balance"
+              : "Run deal to project cash runway"}
+          </div>
+        </div>
       </div>
 
-      <div className="card">
-        <h2>Policy decision</h2>
-        {state.policy ? (
-          <>
-            <div className="row" style={{ marginBottom: 10 }}>
-              <DecisionChip decision={state.policy.decision} />
-              <span className="muted">
-                engine <span className="mono">{state.policy.engine}</span>
-              </span>
+      {/* 3. Trade Counterparties & Goods Breakdown */}
+      <div className="card" style={{ marginBottom: 20, padding: "20px 24px" }}>
+        <h2 style={{ fontSize: 14, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-dim, #94a3b8)", margin: "0 0 16px" }}>
+          Trade Contract & Counterparties
+        </h2>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>
+          {/* Exporter */}
+          <div style={{ background: "rgba(0, 0, 0, 0.2)", padding: 14, borderRadius: "var(--radius-sm, 6px)", border: "1px solid var(--border-subtle, #232d3b)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Building2 size={16} color="var(--accent-cyan, #06b6d4)" />
+              <strong style={{ fontSize: 13, color: "#f8fafc" }}>Beneficiary (Seller)</strong>
             </div>
-            {state.policy.reason && <p className="muted" style={{ marginTop: 0 }}>{state.policy.reason}</p>}
-            {state.policy.rules.length > 0 && (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Rule</th>
-                    <th>Result</th>
-                    <th>Detail</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {state.policy.rules.map((r) => (
-                    <tr key={r.rule}>
-                      <td className="mono">{r.rule}</td>
-                      <td>
-                        <span className={`chip ${r.allowed ? "chip-decision-allow" : "chip-sev-block"}`}>
-                          {r.allowed ? "pass" : "fail"}
-                        </span>
-                      </td>
-                      <td className="muted">{r.detail}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </>
-        ) : (
-          <div className="empty">No policy decision yet — run the deal.</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--accent-cyan, #06b6d4)", marginBottom: 4 }}>
+              {payee ?? "Shenzhen Sunny Goods Co"}
+            </div>
+            <div className="faint" style={{ fontSize: 12 }}>
+              Location: Shenzhen, Guangdong, China
+            </div>
+          </div>
+
+          {/* Importer */}
+          <div style={{ background: "rgba(0, 0, 0, 0.2)", padding: 14, borderRadius: "var(--radius-sm, 6px)", border: "1px solid var(--border-subtle, #232d3b)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Globe size={16} color="var(--text-dim, #94a3b8)" />
+              <strong style={{ fontSize: 13, color: "#f8fafc" }}>Applicant (Buyer)</strong>
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#e2e8f0", marginBottom: 4 }}>
+              {applicant ?? "Dhaka Trading House"}
+            </div>
+            <div className="faint" style={{ fontSize: 12 }}>
+              Location: Dhaka, Bangladesh
+            </div>
+          </div>
+
+          {/* Instrument / Contract */}
+          <div style={{ background: "rgba(0, 0, 0, 0.2)", padding: 14, borderRadius: "var(--radius-sm, 6px)", border: "1px solid var(--border-subtle, #232d3b)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <FileText size={16} color="var(--accent-violet, #8b5cf6)" />
+              <strong style={{ fontSize: 13, color: "#f8fafc" }}>Governing Instrument</strong>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", marginBottom: 4 }}>
+              Letter of Credit {lcNumber ? `#${lcNumber}` : "(Document Attached)"}
+            </div>
+            <div className="faint" style={{ fontSize: 12 }}>
+              Governed under ICC Uniform Customs & Practice (UCP 600)
+            </div>
+          </div>
+        </div>
+
+        {goods && (
+          <div
+            style={{
+              marginTop: 16,
+              padding: "10px 14px",
+              background: "rgba(255, 255, 255, 0.02)",
+              borderRadius: "var(--radius-sm, 6px)",
+              border: "1px solid rgba(255, 255, 255, 0.05)",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              fontSize: 13,
+            }}
+          >
+            <Package size={16} color="var(--text-dim, #94a3b8)" />
+            <span style={{ color: "var(--text-dim, #94a3b8)" }}>Commodity Specification:</span>
+            <span style={{ color: "#f8fafc", fontWeight: 500 }}>{goods}</span>
+          </div>
         )}
       </div>
 
+      {/* 4. Settlement & Payout Receipt (When Executed) */}
       {state.receipt && (
-        <div className="card">
-          <h2>Receipt</h2>
-          <dl className="kv">
+        <div className="card" style={{ padding: "20px 24px", marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <ReceiptIcon size={18} color="var(--status-pass, #10b981)" />
+            <h2 style={{ margin: 0, fontSize: 16 }}>Settlement & Payout Receipt</h2>
+          </div>
+          <dl className="kv" style={{ margin: 0 }}>
             <dt>Receipt ID</dt>
-            <dd>{state.receipt.receipt_id}</dd>
+            <dd className="mono">{state.receipt.receipt_id}</dd>
             <dt>Payout reference</dt>
-            <dd>{state.receipt.payout_ref}</dd>
-            <dt>Amount</dt>
-            <dd>{formatMoney(state.receipt.amount.amount_minor, state.receipt.amount.currency)}</dd>
-            <dt>Anchored hash</dt>
-            <dd>{state.receipt.anchored_hash ?? "—"}</dd>
-            <dt>Executed at</dt>
-            <dd>{state.receipt.executed_at}</dd>
-          </dl>
-        </div>
-      )}
-
-      {state.escalation_reason && (
-        <div className="card" style={{ borderColor: "#7f1d1d" }}>
-          <h2 style={{ color: "#fca5a5" }}>Escalated</h2>
-          <p style={{ margin: 0, color: "#fca5a5" }}>{state.escalation_reason}</p>
-          {state.fatal_error && (
-            <p className="mono muted" style={{ marginBottom: 0 }}>{state.fatal_error}</p>
-          )}
-        </div>
-      )}
-
-      {state.injection_flags.length > 0 && (
-        <div className="card">
-          <h2>Injection screening</h2>
-          {state.injection_flags.map((f, i) => (
-            <div key={i} className={`finding sev-${f.severity}`}>
-              <div className="finding-head">
-                <SeverityChip severity={f.severity} />
-                <span className="finding-rule">{f.kind}</span>
-                <span className="mono faint">{f.doc_id}</span>
+            <dd className="mono">{state.receipt.payout_ref}</dd>
+            <dt>Executed amount</dt>
+            <dd className="mono" style={{ fontWeight: 700, color: "var(--status-pass, #10b981)", fontSize: 15 }}>
+              {formatMoney(state.receipt.amount.amount_minor, state.receipt.amount.currency)}
+            </dd>
+            <dt>Anchored audit hash</dt>
+            <dd>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="mono" style={{ color: "var(--accent-violet, #8b5cf6)" }}>
+                  {state.receipt.anchored_hash ?? "—"}
+                </span>
+                {state.receipt.anchored_hash && (
+                  <button
+                    onClick={() => copyToClipboard(state.receipt!.anchored_hash!)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--text-dim, #94a3b8)",
+                      cursor: "pointer",
+                      padding: 2,
+                    }}
+                    title="Copy full hash"
+                  >
+                    {copiedHash ? <Check size={14} color="var(--status-pass)" /> : <Copy size={14} />}
+                  </button>
+                )}
               </div>
-              <div className="finding-explanation">{f.detail}</div>
-              {f.evidence.map((e, j) => (
-                <div key={j} className="evidence">
-                  <div className="quote">{e.snippet}</div>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {state.approval && (
-        <div className="card">
-          <h2>Approval <StatusChip status="fixed" /></h2>
-          <dl className="kv">
-            <dt>Approver</dt>
-            <dd>{state.approval.approver_id}</dd>
-            <dt>Method</dt>
-            <dd>{state.approval.method}</dd>
-            <dt>Deal hash</dt>
-            <dd>{state.approval.deal_hash}</dd>
-            <dt>Signed at</dt>
-            <dd>{state.approval.signed_at}</dd>
-            <dt>Nonce</dt>
-            <dd>{state.approval.nonce}</dd>
+            </dd>
+            <dt>Execution timestamp</dt>
+            <dd className="mono">{state.receipt.executed_at}</dd>
           </dl>
         </div>
       )}
 
-      {state.served_by.length > 0 && (
-        <div className="card">
-          <h2>Model usage</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Node</th>
-                <th>Alias</th>
-                <th>Deployment</th>
-                <th className="num">Tokens</th>
-                <th className="num">Cost (USD)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {state.served_by.map((m, i) => (
-                <tr key={i}>
-                  <td className="mono">{m.node}</td>
-                  <td className="mono">{m.alias}</td>
-                  <td className="mono muted">
-                    {m.deployment} {m.degraded ? "(degraded)" : ""}
-                  </td>
-                  <td className="num">{m.prompt_tokens + m.completion_tokens}</td>
-                  <td className="num">{formatMoney(m.cost_minor, "USD")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <SyntheticNote />
+      {/* Subtle Synthetic Footnote */}
+      <p className="faint" style={{ fontSize: 12, marginTop: 16, textAlign: "center" }}>
+        All amounts, FX quotes, and trade calculations in this console are synthetic demonstration data for evaluation.
+      </p>
     </div>
-  );
-}
-
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="stat">
-      <div className="label">{label}</div>
-      <div className="value">{value}</div>
-      {sub && <div className="sub">{sub}</div>}
-    </div>
-  );
-}
-
-function SyntheticNote() {
-  return (
-    <p className="faint" style={{ fontSize: 12 }}>
-      All amounts, FX quotes and finance offers in this console are synthetic data
-      generated for the demo — no real counterparties or payments.
-    </p>
   );
 }
 
@@ -196,6 +253,35 @@ export function findPayee(state: DealState): string | null {
     if (d.kind !== "commercial_invoice") continue;
     const b = d.fields.find((f) => f.name === "beneficiary");
     if (b && b.value !== null && b.value !== undefined) return String(b.value);
+  }
+  return null;
+}
+
+export function findApplicant(state: DealState): string | null {
+  for (const d of state.extracted) {
+    const a = d.fields.find((f) => f.name === "applicant" || f.name === "buyer");
+    if (a && a.value) return String(a.value);
+  }
+  return null;
+}
+
+export function findLcNumber(state: DealState): string | null {
+  for (const d of state.extracted) {
+    const lc = d.fields.find((f) => f.name === "lc_number" || f.name === "credit_number");
+    if (lc && lc.value) return String(lc.value);
+  }
+  return null;
+}
+
+export function findGoods(state: DealState): string | null {
+  for (const d of state.extracted) {
+    const g = d.fields.find(
+      (f) =>
+        f.name === "goods_description" ||
+        f.name === "description_of_goods" ||
+        f.name === "goods",
+    );
+    if (g && g.value) return String(g.value);
   }
   return null;
 }

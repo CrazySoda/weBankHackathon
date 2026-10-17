@@ -35,6 +35,29 @@ DEMO_SIGNER_NOTICE = (
     "passkey. Local synthetic demo only."
 )
 
+SEED_SCENARIOS: dict[str, list[tuple[str, str]]] = {
+    "clean": [
+        ("letter_of_credit", "seed-01/lc.pdf"),
+        ("commercial_invoice", "seed-01/inv.pdf"),
+        ("packing_list", "seed-01/pl.pdf"),
+    ],
+    "discrepancy": [
+        ("letter_of_credit", "seed-06/lc.pdf"),
+        ("commercial_invoice", "seed-06/inv.pdf"),
+        ("packing_list", "seed-06/pl.pdf"),
+    ],
+    "mismatch": [
+        ("letter_of_credit", "seed-08/lc.pdf"),
+        ("commercial_invoice", "seed-08/inv.pdf"),
+        ("packing_list", "seed-08/pl.pdf"),
+    ],
+    "injection": [
+        ("letter_of_credit", "seed-01/lc.pdf"),
+        ("commercial_invoice", "poisoned/poison-01.pdf"),
+        ("packing_list", "seed-01/pl.pdf"),
+    ],
+}
+
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
@@ -63,6 +86,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # supplied by an unauthenticated caller.
         rec = runner.create_deal(settings.default_tenant)
         return {"deal_id": rec.state.deal_id, **SYNTHETIC_BADGE}
+
+    @app.post("/deals/demo-seed/{scenario}")
+    async def demo_seed(scenario: str) -> dict[str, Any]:
+        if settings.default_tenant != "demo-tenant":
+            raise HTTPException(403, "Demo seeding is only available for demo-tenant")
+        if scenario not in SEED_SCENARIOS:
+            raise HTTPException(400, f"Unknown scenario {scenario!r}")
+
+        rec = runner.create_deal(settings.default_tenant)
+        seed_base = Path(__file__).resolve().parent.parent / "seed" / "deals" / "pdfs"
+
+        for kind, rel_path in SEED_SCENARIOS[scenario]:
+            p = seed_base / rel_path
+            if not p.exists():
+                raise HTTPException(500, f"Seed file missing: {rel_path}")
+            data = p.read_bytes()
+            runner.add_document(rec.state.deal_id, data, p.name, "application/pdf", kind)
+
+        return {"deal_id": rec.state.deal_id, "scenario": scenario, **SYNTHETIC_BADGE}
 
     @app.post("/deals/{deal_id}/documents")
     async def upload_document(
@@ -141,8 +183,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def resume_deal(deal_id: str, payload: ResumeBody) -> dict[str, Any]:
         if deal_id not in runner.deals:
             raise HTTPException(404, "unknown deal")
-        if runner.deals[deal_id].running:
+        rec = runner.deals[deal_id]
+        if rec.running:
             raise HTTPException(409, "deal already running")
+        if payload.action == "approve":
+            open_blocks = [
+                f for f in rec.state.findings if f.severity == "block" and f.status == "open"
+            ]
+            if open_blocks:
+                raise HTTPException(
+                    400, f"Cannot approve deal with {len(open_blocks)} open block finding(s)"
+                )
         task = asyncio.create_task(runner.resume(deal_id, payload.model_dump(exclude_none=True)))
         background_tasks.add(task)
         task.add_done_callback(background_tasks.discard)
@@ -251,6 +302,14 @@ def _module_app() -> FastAPI | None:
     """ASGI entrypoint for `uvicorn app.main:app`. Building settings requires
     env (virtual key + signing key); tests build their own app instead."""
     import os
+
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+        load_dotenv("../.env")
+    except ImportError:
+        pass
 
     if not os.environ.get("LITELLM_VIRTUAL_KEY"):
         return None

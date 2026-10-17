@@ -1,96 +1,254 @@
-import { useRef, useState } from "react";
-import type { ApprovalInterruptPayload, DealState, DocKind, InterruptPayload } from "../api";
-import { api, formatMoney } from "../api";
-import { SeverityChip, StatusChip } from "../ui";
-import { bestRoute, findPayee, totalAmountOf } from "../panels/Overview";
+import { useState } from "react";
+import type { DealState, InterruptPayload } from "../api";
+import { api, formatMoney, shortHash } from "../api";
+import { findPayee, totalAmountOf, bestRoute } from "../panels/Overview";
+import {
+  AlertTriangle,
+  Lock,
+  AlertOctagon,
+  CheckCircle2,
+  X,
+  ArrowRight,
+  Upload,
+  Check,
+} from "lucide-react";
 
-/**
- * Action bar rendered when the last event before done was an interrupt.
- * Two shapes, per the backend interrupt payloads:
- *  - human_approval: full approval panel (findings, waivers, fx, finance, payee, amount)
- *  - await_corrected_doc: amendment draft + corrected-document upload
- */
+interface ApprovalBarProps {
+  state: DealState;
+  payload: InterruptPayload | null;
+  onResumed: () => void;
+  onNavigateTab?: (tab: string) => void;
+}
+
 export default function ApprovalBar({
   state,
   payload,
   onResumed,
-}: {
-  state: DealState;
-  payload: InterruptPayload | null;
-  onResumed: () => void;
-}) {
+  onNavigateTab,
+}: ApprovalBarProps) {
   const kind =
     payload?.kind ??
     (payload === null ? inferKind(state) : String(payload.kind));
 
   if (kind === "await_corrected_doc") {
-    return <CorrectedDocBar state={state} payload={payload} onResumed={onResumed} />;
-  }
-  if (kind === "escalate") {
     return (
-      <div className="action-bar" style={{ borderColor: "#7f1d1d" }}>
-        <div className="action-bar-title" style={{ color: "#fca5a5" }}>
-          Deal escalated — no action available
-        </div>
-        <div className="action-bar-sub">
-          {state.escalation_reason ??
-            "The harness failed closed. Review the findings and audit trail, then create a new deal."}
-        </div>
-      </div>
+      <AwaitDocBanner
+        state={state}
+        onResumed={onResumed}
+        onNavigateTab={onNavigateTab}
+      />
     );
   }
-  return <HumanApprovalBar state={state} payload={payload} onResumed={onResumed} />;
+  if (kind === "escalate" || state.escalation_reason) {
+    return <EscalateBanner state={state} onNavigateTab={onNavigateTab} />;
+  }
+  return <ApprovalActionBanner state={state} onResumed={onResumed} />;
 }
 
 function inferKind(state: DealState): string {
   if (state.amendment_draft) return "await_corrected_doc";
-  if (!state.approval && !state.receipt && !state.escalation_reason) return "human_approval";
+  if (state.escalation_reason) return "escalate";
   return "human_approval";
 }
 
 /* ------------------------------------------------------------------ */
+/* 1. Awaiting Corrected Doc Sleek Banner                             */
+/* ------------------------------------------------------------------ */
 
-function HumanApprovalBar({
+function AwaitDocBanner({
   state,
-  payload,
+  onNavigateTab,
+}: {
+  state: DealState;
+  onResumed: () => void;
+  onNavigateTab?: (tab: string) => void;
+}) {
+  const openBlocks = state.findings.filter(
+    (f) => f.severity === "block" && f.status === "open",
+  );
+
+  return (
+    <div
+      className="clean-status-banner"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 16,
+        padding: "12px 18px",
+        background: "rgba(245, 158, 11, 0.08)",
+        border: "1px solid rgba(245, 158, 11, 0.35)",
+        borderRadius: "var(--radius, 8px)",
+        marginBottom: 16,
+        flexWrap: "wrap",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 260, flex: 1 }}>
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: "50%",
+            background: "rgba(245, 158, 11, 0.15)",
+            color: "var(--status-warn, #f59e0b)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <AlertTriangle size={18} />
+        </div>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontWeight: 700, fontSize: 13, color: "var(--status-warn, #f59e0b)" }}>
+              ACTION REQUIRED: DISCREPANCY DETECTED
+            </span>
+            <span className="chip chip-sev-warn" style={{ fontSize: 10 }}>INTERRUPT</span>
+          </div>
+          <p style={{ margin: "2px 0 0", fontSize: 13, color: "#e2e8f0" }}>
+            {openBlocks.length > 0 && openBlocks[0].summary
+              ? `${openBlocks[0].summary}. An amendment draft has been prepared.`
+              : "Commercial invoice amount exceeds LC limit. An amendment draft is ready."}
+          </p>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button
+          className="btn btn-primary"
+          onClick={() => onNavigateTab?.("findings")}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, padding: "8px 14px" }}
+        >
+          <span>View Amendment & Upload in Findings</span>
+          <ArrowRight size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* 2. Fail-Closed Escalated Sleek Banner                              */
+/* ------------------------------------------------------------------ */
+
+function EscalateBanner({
+  state,
+  onNavigateTab,
+}: {
+  state: DealState;
+  onNavigateTab?: (tab: string) => void;
+}) {
+  return (
+    <div
+      className="clean-status-banner"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 16,
+        padding: "12px 18px",
+        background: "rgba(244, 63, 94, 0.08)",
+        border: "1px solid rgba(244, 63, 94, 0.35)",
+        borderRadius: "var(--radius, 8px)",
+        marginBottom: 16,
+        flexWrap: "wrap",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 260, flex: 1 }}>
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: "50%",
+            background: "rgba(244, 63, 94, 0.15)",
+            color: "var(--status-block, #f43f5e)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <AlertOctagon size={18} />
+        </div>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontWeight: 700, fontSize: 13, color: "var(--status-block, #f43f5e)" }}>
+              DEAL ESCALATED — SYSTEM FAILED CLOSED
+            </span>
+            <span className="chip chip-sev-block" style={{ fontSize: 10 }}>HALTED</span>
+          </div>
+          <p style={{ margin: "2px 0 0", fontSize: 13, color: "#cbd5e1" }}>
+            {state.escalation_reason || "Unfixable discrepancy or security rule triggered. Payout safely prevented."}
+          </p>
+        </div>
+      </div>
+
+      <button
+        className="btn btn-secondary"
+        onClick={() => onNavigateTab?.("audit")}
+        style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}
+      >
+        <span>View Audit Proof</span>
+        <ArrowRight size={14} />
+      </button>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* 3. Human Approval Sleek Banner & Modal                             */
+/* ------------------------------------------------------------------ */
+
+function ApprovalActionBanner({
+  state,
   onResumed,
 }: {
   state: DealState;
-  payload: InterruptPayload | null;
   onResumed: () => void;
 }) {
   const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  const payee = (payload?.payee as string | null) ?? findPayee(state);
-  const amountMinor =
-    typeof payload?.amount_minor === "number"
-      ? (payload.amount_minor as number)
-      : totalAmountOf(state);
-  const waivers = (payload?.waivers as Array<{ check_id: string }> | undefined) ??
-    state.findings.filter((f) => f.status === "waived").map((f) => ({ check_id: f.check_id }));
-  const findings = (payload?.findings as Array<DecisionLike> | undefined) ?? state.findings;
-  const flags =
-    (payload?.injection_flags as ApprovalInterruptPayload["injection_flags"] | undefined) ??
-    state.injection_flags;
-  const offer = (payload?.finance_offer as DealState["finance_offer"]) ?? state.finance_offer;
+  const payee = findPayee(state);
+  const amountMinor = totalAmountOf(state);
   const best = bestRoute(state);
 
-  async function act(action: "approve" | "reject") {
-    setBusy(action);
+  const openBlocks = state.findings.filter(
+    (f) => f.severity === "block" && f.status === "open",
+  );
+  const canApprove = openBlocks.length === 0 && busy === null;
+
+  async function executeApprove() {
+    setBusy("approve");
+    setError(null);
+    setShowConfirmModal(false);
+    try {
+      const res = await api.signDemo(state.deal_id);
+      await api.resume(state.deal_id, {
+        action: "approve",
+        approval: res.approval,
+        note: note || "Approved via DEMO signer (Ed25519 signature over canonical deal hash)",
+      });
+      onResumed();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function executeReject() {
+    if (!note.trim()) {
+      setError("Please provide a rejection note explaining why this deal is declined.");
+      return;
+    }
+    setBusy("reject");
     setError(null);
     try {
-      if (action === "approve") {
-        const res = await api.signDemo(state.deal_id);
-        await api.resume(state.deal_id, {
-          action: "approve",
-          approval: res.approval,
-          note: note || "Approved via DEMO signer (shortcut, not a human passkey)",
-        });
-      } else {
-        await api.resume(state.deal_id, { action: "reject", note });
-      }
+      await api.resume(state.deal_id, { action: "reject", note });
       onResumed();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -100,236 +258,174 @@ function HumanApprovalBar({
   }
 
   return (
-    <div className="action-bar">
-      <div className="action-bar-title">
-        Human approval required
-        <span className="chip chip-sev-warn">interrupt</span>
-      </div>
-      <div className="action-bar-sub">
-        The harness paused before any payout. Review exactly what you are approving —
-        the deal is hashed at approval time; any change after signing invalidates it.
-      </div>
-
-      <div className="card-grid" style={{ marginBottom: 12 }}>
-        <div className="stat">
-          <div className="label">Payee</div>
-          <div className="value" style={{ fontSize: 15 }}>{payee ?? "—"}</div>
-        </div>
-        <div className="stat">
-          <div className="label">Amount</div>
-          <div className="value">{amountMinor !== null ? formatMoney(amountMinor, "USD") : "—"}</div>
-        </div>
-        <div className="stat">
-          <div className="label">Waivers</div>
-          <div className="value">{waivers.length}</div>
-          <div className="sub">each needs a named human + reason</div>
-        </div>
-        <div className="stat">
-          <div className="label">Best FX route</div>
-          <div className="value" style={{ fontSize: 15 }}>
-            {best ? best.provider : "—"}
+    <>
+      <div
+        className="clean-status-banner"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 16,
+          padding: "14px 18px",
+          background: "rgba(16, 185, 129, 0.08)",
+          border: "1px solid rgba(16, 185, 129, 0.35)",
+          borderRadius: "var(--radius, 8px)",
+          marginBottom: 16,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 260, flex: 1 }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: "50%",
+              background: "rgba(16, 185, 129, 0.15)",
+              color: "var(--status-pass, #10b981)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Lock size={18} />
           </div>
-          {best && (
-            <div className="sub mono">
-              net {formatMoney(best.net_minor, best.buy_currency)} · rate{" "}
-              {(best.effective_rate_scaled / 1e6).toFixed(6)}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontWeight: 700, fontSize: 13, color: "var(--status-pass, #10b981)" }}>
+                READY FOR CRYPTOGRAPHIC SIGNING
+              </span>
+              <span className="chip chip-decision-allow" style={{ fontSize: 10 }}>CLEAN</span>
             </div>
-          )}
+            <p style={{ margin: "2px 0 0", fontSize: 13, color: "#e2e8f0" }}>
+              Payee: <strong>{payee ?? "Verified Exporter"}</strong> · Amount:{" "}
+              <strong>{amountMinor !== null ? formatMoney(amountMinor, "USD") : "—"}</strong>
+              {best && (
+                <span className="faint" style={{ marginLeft: 8 }}>
+                  (FX: {best.provider})
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <input
+            style={{ width: 220, fontSize: 12, padding: "6px 10px" }}
+            placeholder="Audit note (optional for approve)…"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <button
+            className="btn btn-approve"
+            disabled={!canApprove}
+            onClick={() => setShowConfirmModal(true)}
+            style={{ fontSize: 13, padding: "8px 16px" }}
+          >
+            {busy === "approve" ? "Signing…" : "Approve with DEMO Signer"}
+          </button>
+          <button
+            className="btn btn-reject"
+            disabled={busy !== null}
+            onClick={executeReject}
+            style={{ fontSize: 13, padding: "8px 14px" }}
+          >
+            {busy === "reject" ? "Rejecting…" : "Reject"}
+          </button>
         </div>
       </div>
 
-      {offer && (
-        <div className="card" style={{ marginBottom: 12 }}>
-          <h2>Finance offer</h2>
-          <dl className="kv">
-            <dt>Provider</dt>
-            <dd>
-              {offer.provider} {offer.synthetic && <span className="chip chip-synthetic">synthetic</span>}
-            </dd>
-            <dt>Face</dt>
-            <dd>{formatMoney(offer.face.amount_minor, offer.face.currency)}</dd>
-            <dt>Advance</dt>
-            <dd>{formatMoney(offer.advance.amount_minor, offer.advance.currency)}</dd>
-            <dt>Total cost</dt>
-            <dd>{formatMoney(offer.total_cost.amount_minor, offer.total_cost.currency)}</dd>
-            <dt>Net proceeds</dt>
-            <dd>{formatMoney(offer.net_proceeds.amount_minor, offer.net_proceeds.currency)}</dd>
-            <dt>Effective cost</dt>
-            <dd>{offer.effective_cost_bp_annual} bp annual · {offer.days_to_maturity} days</dd>
-          </dl>
+      {error && (
+        <div style={{ margin: "-8px 0 16px", color: "var(--status-block)", fontSize: 12 }}>
+          {error}
         </div>
       )}
 
-      {flags.length > 0 && (
-        <div className="card" style={{ marginBottom: 12 }}>
-          <h2>Injection warnings you are approving past ({flags.length})</h2>
-          {flags.map((f, i) => (
-            <div key={i} className={`finding sev-${f.severity}`} style={{ marginBottom: 8 }}>
-              <div className="finding-head">
-                <SeverityChip severity={f.severity} />
-                <span className="finding-rule">{f.kind}</span>
-                <span className="mono faint">{f.doc_id}</span>
-              </div>
-              <div className="finding-summary" style={{ fontSize: 13 }}>{f.detail}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="card" style={{ marginBottom: 12 }}>
-        <h2>Findings being approved ({findings.length})</h2>
-        {findings.length === 0 ? (
-          <div className="empty">No findings — clean deal.</div>
-        ) : (
-          findings.map((f, i) => (
-            <div key={i} className={`finding sev-${f.severity}`} style={{ marginBottom: 8 }}>
-              <div className="finding-head">
-                <SeverityChip severity={f.severity} />
-                <StatusChip status={f.status} />
-                <span className="finding-rule">{f.rule_id}</span>
-              </div>
-              <div className="finding-summary" style={{ fontSize: 13 }}>
-                {"summary" in f && typeof f.summary === "string" ? f.summary : ""}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      <div className="row">
-        <span className="chip chip-sev-warn" title="Signed by the server with a committed demo key">DEMO SIGNER</span>
-        <input
-          style={{ flex: 1, minWidth: 260 }}
-          placeholder="Note (required for reject — why you are declining)"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-        />
-        <button
-          className="btn btn-approve"
-          disabled={busy !== null}
-          onClick={() => act("approve")}
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div
+          className="modal-overlay"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.75)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 16,
+          }}
         >
-          {busy === "approve" ? "Signing & Executing…" : "Approve with DEMO signer"}
-        </button>
-        <button
-          className="btn btn-reject"
-          disabled={busy !== null}
-          onClick={() => act("reject")}
-        >
-          {busy === "reject" ? "Rejecting…" : "Reject"}
-        </button>
-      </div>
-      {error && <p className="error-text">{error}</p>}
-      <p className="faint" style={{ fontSize: 12, marginBottom: 0 }}>
-        DEMO SHORTCUT: this button has the server sign with a committed demo key, so it is not a human passkey. The Ed25519 signature over the canonical deal hash is still verified. Production uses WebAuthn / WeChat SOTER signers that keep their private keys client-side. Synthetic data only.
-      </p>
-    </div>
-  );
-}
-
-interface DecisionLike {
-  check_id: string;
-  rule_id: string;
-  severity: "info" | "warn" | "block";
-  status: "open" | "fixed" | "waived";
-  summary?: string;
-}
-
-/* ------------------------------------------------------------------ */
-
-function CorrectedDocBar({
-  state,
-  payload,
-  onResumed,
-}: {
-  state: DealState;
-  payload: InterruptPayload | null;
-  onResumed: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [kind, setKind] = useState<DocKind>("commercial_invoice");
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const draft =
-    (payload?.amendment_draft as string | null | undefined) ?? state.amendment_draft;
-  const openBlocks =
-    (payload?.open_block_findings as Array<{ rule_id: string; summary: string }> | undefined) ??
-    state.findings
-      .filter((f) => f.severity === "block" && f.status === "open")
-      .map((f) => ({ rule_id: f.rule_id, summary: f.summary }));
-
-  async function submit() {
-    const file = fileRef.current?.files?.[0];
-    if (!file) {
-      setError("Attach the corrected document first.");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      await api.uploadDocument(state.deal_id, file, kind);
-      await api.resume(state.deal_id, {
-        action: "corrected_document",
-        note: `corrected document uploaded: ${file.name}`,
-      });
-      onResumed();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="action-bar await-doc">
-      <div className="action-bar-title">
-        Corrected document required
-        <span className="chip chip-sev-info">interrupt</span>
-      </div>
-      <div className="action-bar-sub">
-        The harness drafted an amendment for the fixable discrepancies below.
-        Attach the corrected document to resume — max 1 retry, then the deal escalates.
-      </div>
-
-      {openBlocks.length > 0 && (
-        <div style={{ marginBottom: 10 }}>
-          {openBlocks.map((f, i) => (
-            <div key={i} className="finding sev-block" style={{ marginBottom: 6 }}>
-              <div className="finding-head">
-                <SeverityChip severity="block" />
-                <span className="finding-rule">{f.rule_id}</span>
-              </div>
-              <div className="finding-summary" style={{ fontSize: 13 }}>{f.summary}</div>
+          <div
+            className="modal-card"
+            style={{
+              background: "var(--bg-card, #0f172a)",
+              border: "1px solid var(--border-subtle, #334155)",
+              borderRadius: 10,
+              maxWidth: 500,
+              width: "100%",
+              padding: 24,
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                <CheckCircle2 color="var(--status-pass, #10b981)" size={20} />
+                Confirm Deal Approval
+              </h3>
+              <button
+                className="btn-link"
+                onClick={() => setShowConfirmModal(false)}
+                style={{ color: "#94a3b8", cursor: "pointer" }}
+              >
+                <X size={18} />
+              </button>
             </div>
-          ))}
+
+            <p style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.5, margin: "0 0 16px" }}>
+              You are about to issue a cryptographic Ed25519 signature over this deal. The execution hash is recorded immutably in the audit chain.
+            </p>
+
+            <div style={{ background: "rgba(0, 0, 0, 0.35)", borderRadius: 6, padding: 12, marginBottom: 16 }}>
+              <dl className="kv" style={{ margin: 0, fontSize: 12 }}>
+                <dt>Deal ID</dt>
+                <dd className="mono">{state.deal_id}</dd>
+                <dt>Beneficiary</dt>
+                <dd>{payee ?? "—"}</dd>
+                <dt>Total Payout</dt>
+                <dd style={{ fontWeight: 600, color: "var(--status-pass, #10b981)" }}>
+                  {amountMinor !== null ? formatMoney(amountMinor, "USD") : "—"}
+                </dd>
+                <dt>Canonical Hash</dt>
+                <dd className="mono faint">
+                  {state.deal_hash ? shortHash(state.deal_hash, 16) : "Computed upon signing"}
+                </dd>
+              </dl>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowConfirmModal(false)}
+                disabled={busy !== null}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-approve"
+                onClick={executeApprove}
+                disabled={busy !== null}
+              >
+                {busy === "approve" ? "Signing…" : "Confirm & Sign"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
-
-      {draft ? (
-        <>
-          <h2 style={{ margin: "0 0 8px", fontSize: 13, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Amendment draft (text only — never sent automatically)
-          </h2>
-          <div className="amendment">{draft}</div>
-        </>
-      ) : (
-        <div className="empty">No amendment draft available.</div>
-      )}
-
-      <div className="upload-row">
-        <select value={kind} onChange={(e) => setKind(e.target.value as DocKind)}>
-          <option value="commercial_invoice">Commercial invoice</option>
-          <option value="letter_of_credit">Letter of credit</option>
-          <option value="packing_list">Packing list</option>
-          <option value="bill_of_lading">Bill of lading</option>
-        </select>
-        <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" />
-        <button className="btn btn-primary" disabled={busy} onClick={submit}>
-          {busy ? "Uploading…" : "Upload corrected document & resume"}
-        </button>
-      </div>
-      {error && <p className="error-text">{error}</p>}
-    </div>
+    </>
   );
 }

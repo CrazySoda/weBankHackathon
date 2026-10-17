@@ -10,6 +10,7 @@ __pycache__/
 .coverage
 htmlcov/
 dist/
+.agents
 
 # Node
 node_modules/
