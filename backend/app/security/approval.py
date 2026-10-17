@@ -1,7 +1,7 @@
 """Approval signing and verification (BUILD_PLAN M6).
 
 `deal_hash` = canonical sha256 over EXACTLY what the approval screen renders
-(findings, waivers, FX options, finance offer, payee, amount). The human signs
+(findings, waivers, injection flags, FX options, finance offer, payee, amount). The human signs
 this hash with their passkey/SOTER key (ed25519 in the demo). Verification:
 
  1. signature must verify against the approver's key over deal_hash
@@ -69,6 +69,10 @@ def approval_render(state: DealState) -> dict[str, Any]:
             for f in state.findings
         ],
         "waivers": [f.model_dump(mode="json") for f in state.findings if f.status == "waived"],
+        # DECISION: warn-level injection flags (e.g. beneficiary-change language) do not
+        # escalate, so the approver must see them. They are part of the signed render:
+        # a flag added or removed after signing invalidates the approval.
+        "injection_flags": [f.model_dump(mode="json") for f in state.injection_flags],
         "fx_options": [o.model_dump(mode="json") for o in state.fx_options],
         "finance_offer": (
             state.finance_offer.model_dump(mode="json") if state.finance_offer else None

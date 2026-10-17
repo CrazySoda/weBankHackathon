@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { DealState, DocKind, InterruptPayload } from "../api";
+import type { ApprovalInterruptPayload, DealState, DocKind, InterruptPayload } from "../api";
 import { api, formatMoney } from "../api";
 import { SeverityChip, StatusChip } from "../ui";
 import { bestRoute, findPayee, totalAmountOf } from "../panels/Overview";
@@ -71,6 +71,9 @@ function HumanApprovalBar({
   const waivers = (payload?.waivers as Array<{ check_id: string }> | undefined) ??
     state.findings.filter((f) => f.status === "waived").map((f) => ({ check_id: f.check_id }));
   const findings = (payload?.findings as Array<DecisionLike> | undefined) ?? state.findings;
+  const flags =
+    (payload?.injection_flags as ApprovalInterruptPayload["injection_flags"] | undefined) ??
+    state.injection_flags;
   const offer = (payload?.finance_offer as DealState["finance_offer"]) ?? state.finance_offer;
   const best = bestRoute(state);
 
@@ -154,6 +157,22 @@ function HumanApprovalBar({
             <dt>Effective cost</dt>
             <dd>{offer.effective_cost_bp_annual} bp annual · {offer.days_to_maturity} days</dd>
           </dl>
+        </div>
+      )}
+
+      {flags.length > 0 && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <h2>Injection warnings you are approving past ({flags.length})</h2>
+          {flags.map((f, i) => (
+            <div key={i} className={`finding sev-${f.severity}`} style={{ marginBottom: 8 }}>
+              <div className="finding-head">
+                <SeverityChip severity={f.severity} />
+                <span className="finding-rule">{f.kind}</span>
+                <span className="mono faint">{f.doc_id}</span>
+              </div>
+              <div className="finding-summary" style={{ fontSize: 13 }}>{f.detail}</div>
+            </div>
+          ))}
         </div>
       )}
 

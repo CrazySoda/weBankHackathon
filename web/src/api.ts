@@ -227,6 +227,13 @@ export interface ApprovalInterruptPayload {
     status: FindingStatus;
   }>;
   waivers: Array<{ check_id: string }>;
+  /** Signed as part of the approval render: the approver must see these. */
+  injection_flags: Array<{
+    kind: string;
+    severity: Severity;
+    doc_id: string;
+    detail: string;
+  }>;
   fx_options: FxOption[];
   finance_offer: FinanceOfferState | null;
   payee: string | null;
