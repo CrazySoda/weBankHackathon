@@ -156,3 +156,37 @@ class TestStructuralChecks:
         )
         with pytest.raises(ApprovalError, match="nonce"):
             verify_approval(approval, "d1", "digest")
+
+
+class TestInjectionFlagsAreSigned:
+    """Warn-level injection flags do not escalate, so the approver must see them
+    and a flag added or removed after signing must invalidate the approval."""
+
+    def _state(self, flags):  # type: ignore[no-untyped-def]
+        from app.graph.state import DealState
+
+        return DealState(deal_id="d1", tenant_id="t1", injection_flags=flags)
+
+    def _flag(self):  # type: ignore[no-untyped-def]
+        from app.graph.state import Flag
+
+        return Flag(
+            kind="beneficiary_change_language",
+            severity="warn",
+            doc_id="doc_x",
+            detail="beneficiary change wording",
+        )
+
+    def test_render_carries_flags(self) -> None:
+        from app.security.approval import approval_render
+
+        render = approval_render(self._state([self._flag()]))
+        assert render["injection_flags"][0]["kind"] == "beneficiary_change_language"
+        assert render["injection_flags"][0]["severity"] == "warn"
+
+    def test_adding_a_flag_after_signing_invalidates_the_approval(self) -> None:
+        from app.security.approval import approval_render
+
+        clean = approval_render(self._state([]))
+        flagged = approval_render(self._state([self._flag()]))
+        assert deal_hash(clean) != deal_hash(flagged)

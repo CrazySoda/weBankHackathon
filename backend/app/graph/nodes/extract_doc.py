@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.graph.state import (
     DealState,
@@ -40,6 +40,23 @@ ALLOWED_KINDS = {
 }
 
 
+# Fields a document of this kind cannot be checked or paid against without. A model that
+# returns a sparse extraction lacking them (seen live: 1 field from an invoice) gets one
+# bounded retry, instead of the deal failing downstream with an opaque policy deny.
+KEY_FIELDS: dict[str, frozenset[str]] = {
+    "commercial_invoice": frozenset({"total_amount", "beneficiary"}),
+    "letter_of_credit": frozenset({"beneficiary"}),
+}
+
+
+def _key_fields_found(kind: str, output: ExtractionOutput) -> int:
+    return len(KEY_FIELDS.get(kind, frozenset()) & {f.name for f in output.fields})
+
+
+def _missing_key_fields(kind: str, output: ExtractionOutput) -> bool:
+    return _key_fields_found(kind, output) < len(KEY_FIELDS.get(kind, frozenset()))
+
+
 class FieldOut(BaseModel):
     name: str
     value: Any = None
@@ -47,10 +64,19 @@ class FieldOut(BaseModel):
     snippet: str = ""
     page: int | None = None
 
+    # The model-facing schema must list `snippet` as required: an optional snippet is
+    # dropped by some models (seen live), leaving findings with no evidence to ground.
+    # The Python default stays so scripted extractions can omit it.
+    model_config = ConfigDict(
+        json_schema_extra=lambda schema: schema.setdefault("required", []).append("snippet")
+    )
+
 
 class ExtractionOutput(BaseModel):
-    kind: DocKind = "unknown"
-    fields: list[FieldOut] = []
+    # Both required (no defaults): a defaulted field is optional in the JSON schema
+    # and some models (Gemini) then omit `fields` and return a bare {"kind": ...}.
+    kind: DocKind
+    fields: list[FieldOut]
 
 
 def _spans_for(stored_bytes: bytes, mime: str) -> list[TextSpan]:
@@ -82,26 +108,50 @@ async def extract_doc(state: DealState, ctx: NodeContext) -> dict[str, Any]:
     text = full_text(spans) or "[image document]"
     system, version = ctx.system_prompt("extract_doc", state)
 
-    result = await ctx.llm.complete(
-        alias="fast",
-        system=system + "\n\n" + SYSTEM,
-        messages=[
-            {
-                "role": "user",
-                "content": (
-                    f"Document type hint: {doc.kind}\n"
-                    f"<untrusted>\n{text[:20_000]}\n</untrusted>\n"
-                    "Return the structured document."
-                ),
-            }
-        ],
-        output_model=ExtractionOutput,
-        node="extract_doc",
-        prompt_version=version,
-    )
+    messages = [
+        {
+            "role": "user",
+            "content": (
+                f"Document type hint: {doc.kind}\n"
+                f"<untrusted>\n{text[:20_000]}\n</untrusted>\n"
+                "Return the structured document."
+            ),
+        }
+    ]
+
+    async def read(temperature: float) -> Any:
+        return await ctx.llm.complete(
+            alias="fast",
+            system=system + "\n\n" + SYSTEM,
+            messages=messages,
+            output_model=ExtractionOutput,
+            node="extract_doc",
+            prompt_version=version,
+            temperature=temperature,
+        )
+
+    def resolved_kind(out: ExtractionOutput) -> str:
+        return out.kind if out.kind in ALLOWED_KINDS else doc.kind
+
+    result = await read(0.0)
+    uses = [result.use]
+    if _missing_key_fields(resolved_kind(result.output), result.output):
+        retry = await read(0.3)
+        uses.append(retry.use)
+
+        # keep whichever attempt found more of the key fields (then more fields overall)
+        def score(out: ExtractionOutput) -> tuple[int, int]:
+            return (_key_fields_found(resolved_kind(out), out), len(out.fields))
+
+        if score(retry.output) > score(result.output):
+            result = retry
 
     parsed = result.output
-    kind = parsed.kind if parsed.kind in ALLOWED_KINDS else doc.kind
+    kind = resolved_kind(parsed)
+    # DECISION: a snippet the model paraphrased (not verbatim in the document) is dropped
+    # here, so it can never be attached as evidence. Compliance builds each finding's
+    # evidence from every field's snippet and `verify` requires all quotes to be verbatim;
+    # without this, one paraphrased snippet on an unrelated field escalates the deal.
     fields = [
         ExtractedField(
             name=f.name,
@@ -109,7 +159,7 @@ async def extract_doc(state: DealState, ctx: NodeContext) -> dict[str, Any]:
             confidence=f.confidence,
             source=SourceRef(
                 page=f.page,
-                snippet=f.snippet[:200],
+                snippet=f.snippet[:200] if f.snippet[:200] in text else "",
             ),
         )
         for f in parsed.fields
@@ -123,4 +173,4 @@ async def extract_doc(state: DealState, ctx: NodeContext) -> dict[str, Any]:
         extraction_model=result.use.deployment,
         low_confidence=low,
     )
-    return {"extracted": [extracted], "served_by": [result.use]}
+    return {"extracted": [extracted], "served_by": uses}

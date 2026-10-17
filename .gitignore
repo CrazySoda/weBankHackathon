@@ -34,3 +34,6 @@ litellm/config.yaml
 # OS
 .DS_Store
 Thumbs.db
+
+# local demo approval signer private key
+.demo-signer.key

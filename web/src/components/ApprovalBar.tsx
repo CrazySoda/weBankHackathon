@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { DealState, DocKind, InterruptPayload } from "../api";
+import type { ApprovalInterruptPayload, DealState, DocKind, InterruptPayload } from "../api";
 import { api, formatMoney } from "../api";
 import { SeverityChip, StatusChip } from "../ui";
 import { bestRoute, findPayee, totalAmountOf } from "../panels/Overview";
@@ -71,6 +71,9 @@ function HumanApprovalBar({
   const waivers = (payload?.waivers as Array<{ check_id: string }> | undefined) ??
     state.findings.filter((f) => f.status === "waived").map((f) => ({ check_id: f.check_id }));
   const findings = (payload?.findings as Array<DecisionLike> | undefined) ?? state.findings;
+  const flags =
+    (payload?.injection_flags as ApprovalInterruptPayload["injection_flags"] | undefined) ??
+    state.injection_flags;
   const offer = (payload?.finance_offer as DealState["finance_offer"]) ?? state.finance_offer;
   const best = bestRoute(state);
 
@@ -83,7 +86,7 @@ function HumanApprovalBar({
         await api.resume(state.deal_id, {
           action: "approve",
           approval: res.approval,
-          note: note || "Approved via WebAuthn passkey",
+          note: note || "Approved via DEMO signer (shortcut, not a human passkey)",
         });
       } else {
         await api.resume(state.deal_id, { action: "reject", note });
@@ -157,6 +160,22 @@ function HumanApprovalBar({
         </div>
       )}
 
+      {flags.length > 0 && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <h2>Injection warnings you are approving past ({flags.length})</h2>
+          {flags.map((f, i) => (
+            <div key={i} className={`finding sev-${f.severity}`} style={{ marginBottom: 8 }}>
+              <div className="finding-head">
+                <SeverityChip severity={f.severity} />
+                <span className="finding-rule">{f.kind}</span>
+                <span className="mono faint">{f.doc_id}</span>
+              </div>
+              <div className="finding-summary" style={{ fontSize: 13 }}>{f.detail}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="card" style={{ marginBottom: 12 }}>
         <h2>Findings being approved ({findings.length})</h2>
         {findings.length === 0 ? (
@@ -178,6 +197,7 @@ function HumanApprovalBar({
       </div>
 
       <div className="row">
+        <span className="chip chip-sev-warn" title="Signed by the server with a committed demo key">DEMO SIGNER</span>
         <input
           style={{ flex: 1, minWidth: 260 }}
           placeholder="Note (required for reject — why you are declining)"
@@ -189,7 +209,7 @@ function HumanApprovalBar({
           disabled={busy !== null}
           onClick={() => act("approve")}
         >
-          {busy === "approve" ? "Signing & Executing…" : "Approve with Passkey (Verified)"}
+          {busy === "approve" ? "Signing & Executing…" : "Approve with DEMO signer"}
         </button>
         <button
           className="btn btn-reject"
@@ -201,7 +221,7 @@ function HumanApprovalBar({
       </div>
       {error && <p className="error-text">{error}</p>}
       <p className="faint" style={{ fontSize: 12, marginBottom: 0 }}>
-        Approval verifies a cryptographic Ed25519 signature over canonical deal hash (WebAuthn / WeChat SOTER). Pre-registered demo key active.
+        DEMO SHORTCUT: this button has the server sign with a committed demo key, so it is not a human passkey. The Ed25519 signature over the canonical deal hash is still verified. Production uses WebAuthn / WeChat SOTER signers that keep their private keys client-side. Synthetic data only.
       </p>
     </div>
   );

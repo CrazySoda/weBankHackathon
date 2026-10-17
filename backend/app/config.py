@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://cleartrade:cleartrade@localhost:5432/cleartrade"
     sync_database_url: str = "postgresql+psycopg://cleartrade:cleartrade@localhost:5432/cleartrade"
     redis_url: str = "redis://localhost:6379/0"
+    # Durable deals: snapshots, audit chain and graph checkpoints in Postgres. Off by
+    # default so tests and bare `uvicorn` runs need no database; compose turns it on.
+    persist_deals: bool = False
+    # The local demo has one synthetic tenant; deals and audit rows are scoped to it.
+    default_tenant: str = "demo-tenant"
 
     # --- LiteLLM proxy ---
     litellm_base_url: str = "http://localhost:4000"
@@ -55,4 +60,4 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()  # type: ignore[call-arg]
+    return Settings()

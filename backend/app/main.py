@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -24,16 +26,31 @@ from pydantic import BaseModel
 
 from app.api.deals import DealRunner
 from app.config import Settings, get_settings
+from app.db.persistence import DealStore
 from app.security.storage import DocumentStore
 
 SYNTHETIC_BADGE = {"synthetic_data": True}  # every response carries the demo label (rule 0.10)
+DEMO_SIGNER_NOTICE = (
+    "DEMO SHORTCUT: signed by the server with the committed demo key, not by a human "
+    "passkey. Local synthetic demo only."
+)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
-    app = FastAPI(title="ClearTrade", version="0.1.0")
     docs = DocumentStore(Path("data/uploads"))
-    runner = DealRunner(settings, docs)
+    store = DealStore(settings.sync_database_url) if settings.persist_deals else None
+    runner = DealRunner(settings, docs, store)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        await runner.start()  # opens the Postgres checkpointer when persisting
+        try:
+            yield
+        finally:
+            await runner.stop()
+
+    app = FastAPI(title="ClearTrade", version="0.1.0", lifespan=lifespan)
     app.state.runner = runner
 
     @app.get("/health")
@@ -44,7 +61,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def create_deal() -> dict[str, Any]:
         # Single synthetic tenant in the local demo. Never trust a tenant id
         # supplied by an unauthenticated caller.
-        rec = runner.create_deal("demo-tenant")
+        rec = runner.create_deal(settings.default_tenant)
         return {"deal_id": rec.state.deal_id, **SYNTHETIC_BADGE}
 
     @app.post("/deals/{deal_id}/documents")
@@ -79,7 +96,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ref = runner.add_document(deal_id, data, file.filename, mime, kind)
         return {"doc_id": ref.doc_id, "sha256": ref.sha256, **SYNTHETIC_BADGE}
 
-    background_tasks: set[asyncio.Task] = set()
+    background_tasks: set[asyncio.Task[None]] = set()
 
     @app.post("/deals/{deal_id}/run")
     async def run_deal(deal_id: str) -> dict[str, Any]:
@@ -106,7 +123,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(404, "unknown deal")
         rec = runner.deals[deal_id]
 
-        async def gen():
+        async def gen() -> AsyncIterator[str]:
             # replay any queued events, then follow live until done
             while True:
                 try:
@@ -160,14 +177,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         approval = SignedApproval(
             deal_hash=h,
             approver_id=DEMO_APPROVER_ID,
-            method="webauthn_passkey",
+            method="demo_key",  # not a passkey: committed demo key (DECISIONS #20)
             signature_b64="",
             signed_at=now_str,
             nonce=new_id("nonce"),
         )
         sig = sign_approval(approval, priv_key)
         signed = approval.model_copy(update={"signature_b64": sig})
-        return {"approval": signed.model_dump(), **SYNTHETIC_BADGE}
+        # DEMO SHORTCUT (DECISIONS #20): the server signs with the committed demo key.
+        # It is labelled in the response and the UI and is refused outside env=demo.
+        return {
+            "approval": signed.model_dump(),
+            "demo_shortcut": True,
+            "notice": DEMO_SIGNER_NOTICE,
+            **SYNTHETIC_BADGE,
+        }
 
     @app.post("/deals/seed/{seed_id}")
     async def load_seed_deal(seed_id: str) -> dict[str, Any]:
@@ -177,7 +201,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         seed_dir = Path(__file__).resolve().parents[1] / "seed" / "deals" / "pdfs" / seed_id
         if not seed_dir.is_dir():
             raise HTTPException(404, f"seed deal {seed_id!r} not found")
-        rec = runner.create_deal("demo-tenant")
+        rec = runner.create_deal(settings.default_tenant)
         for pdf_path in sorted(seed_dir.glob("*.pdf")):
             data = pdf_path.read_bytes()
             kind = "unknown"

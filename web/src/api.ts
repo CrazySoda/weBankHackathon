@@ -142,7 +142,7 @@ export interface PolicyDecision {
 export interface SignedApproval {
   deal_hash: string;
   approver_id: string;
-  method: "webauthn_passkey" | "wechat_soter" | "pin_otp";
+  method: "webauthn_passkey" | "wechat_soter" | "pin_otp" | "demo_key";
   signature_b64: string;
   signed_at: string;
   nonce: string;
@@ -227,6 +227,13 @@ export interface ApprovalInterruptPayload {
     status: FindingStatus;
   }>;
   waivers: Array<{ check_id: string }>;
+  /** Signed as part of the approval render: the approver must see these. */
+  injection_flags: Array<{
+    kind: string;
+    severity: Severity;
+    doc_id: string;
+    detail: string;
+  }>;
   fx_options: FxOption[];
   finance_offer: FinanceOfferState | null;
   payee: string | null;
@@ -265,7 +272,7 @@ export type StreamEvent = {
 export interface ApprovalStub {
   deal_hash: string;
   approver_id: string;
-  method: "webauthn_passkey";
+  method: "webauthn_passkey" | "demo_key";
   signature_b64: string;
   signed_at: string;
   nonce: string;
@@ -319,7 +326,8 @@ export const api = {
     request<DealDetail>(`/deals/${encodeURIComponent(dealId)}`),
 
   signDemo: (dealId: string) =>
-    request<{ approval: ApprovalStub }>(`/deals/${encodeURIComponent(dealId)}/sign_demo`, {
+    request<{ approval: ApprovalStub; demo_shortcut: boolean; notice: string }>(
+      `/deals/${encodeURIComponent(dealId)}/sign_demo`, {
       method: "POST",
     }),
 

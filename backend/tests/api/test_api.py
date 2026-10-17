@@ -115,6 +115,38 @@ class TestFullFlow:
             assert r.json()["status"] == "ok"
             assert r.json()["synthetic_data"] is True
 
+    async def test_demo_signer_is_labelled_and_verifiable(self, app_client):
+        """The demo shortcut must say what it is, and sign what the server renders."""
+        from app.graph.state import SignedApproval
+        from app.security.approval import approval_render, deal_hash
+
+        app, runner = app_client
+        deal_id = runner.create_deal("demo-tenant").state.deal_id
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            r = await client.post(f"/deals/{deal_id}/sign_demo")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["demo_shortcut"] is True
+        assert "DEMO SHORTCUT" in body["notice"]
+        assert body["synthetic_data"] is True
+        approval = SignedApproval.model_validate(body["approval"])
+        # the signed audit record must not claim a passkey either
+        assert approval.method == "demo_key"
+        assert approval.deal_hash == deal_hash(approval_render(runner.deals[deal_id].state))
+
+    async def test_demo_signer_refused_outside_demo_env(self, tmp_path: Path):
+        app = create_app(
+            Settings(litellm_virtual_key="sk-test", approval_signing_key="k", env="dev")
+        )
+        deal_id = app.state.runner.create_deal("demo-tenant").state.deal_id
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            r = await client.post(f"/deals/{deal_id}/sign_demo")
+        assert r.status_code == 403
+
     async def test_corrected_document_resume_through_http(self, app_client):
         app, runner = app_client
         fake = runner.llm
@@ -179,6 +211,18 @@ class TestFullFlow:
             second_events = await read_stream(client, deal_id)
             assert second_events[-1][0] == "done"
             assert not any(kind == "error" for kind, _ in second_events)
+
+            # the pre-correction finding must be superseded, not merely outranked
+            state = (await client.get(f"/deals/{deal_id}")).json()["state"]
+            stale = [f for f in state["findings"] if f["rule_id"] == "lc-invoice-exceeds-lc"]
+            assert all(f["status"] != "open" for f in stale), stale
+            assert not [
+                f for f in state["findings"] if f["severity"] == "block" and f["status"] == "open"
+            ]
+            assert any(
+                kind == "interrupt" and event["payload"].get("kind") == "human_approval"
+                for kind, event in second_events
+            )
 
     async def test_deal_budget_is_reused_across_graph_contexts(self, app_client):
         _, runner = app_client

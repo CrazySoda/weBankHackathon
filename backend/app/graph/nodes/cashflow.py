@@ -22,7 +22,7 @@ def _deposit_and_tenor(state: DealState) -> tuple[int | None, int]:
     """(invoice minor USD, LC tenor in days)."""
     minor = None
     tenor = DEFAULT_LC_TENOR_DAYS
-    for d in state.extracted:
+    for d in state.current_extracted:
         f = d.get("total_amount")
         if d.kind == "commercial_invoice" and f is not None:
             from decimal import Decimal, InvalidOperation

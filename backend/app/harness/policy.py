@@ -52,7 +52,7 @@ class PolicyInput(BaseModel):
 def _inputs(state: DealState, amount_cap_minor: int, payee: str | None) -> PolicyInput:
     amount_minor = 0
     beneficiary = None
-    for d in state.extracted:
+    for d in state.current_extracted:
         total = d.get("total_amount") if d.kind == "commercial_invoice" else None
         if total is not None:
             from decimal import Decimal, InvalidOperation

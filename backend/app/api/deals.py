@@ -1,8 +1,10 @@
 """Deal runner service: owns compiled graphs per deal, streams events.
 
-Demo-grade: in-memory deal registry + per-deal asyncio queues for SSE.
-Production would swap the registry for the DB and the checkpointer for
-Postgres; the graph code does not change.
+Two modes. Without a ``DealStore`` (tests, bare uvicorn) everything is in memory.
+With one (``PERSIST_DEALS=true``), deal snapshots and the hash-chained audit log live
+in Postgres and the graph uses the LangGraph Postgres checkpointer, so a restart
+loses nothing: a deal parked at approval can still be resumed. Per-deal asyncio
+queues for SSE stay in memory (live-stream plumbing only).
 """
 
 from __future__ import annotations
@@ -10,12 +12,14 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 from app.audit.anchor import MockAnchor
 from app.audit.events import GENESIS, AuditEvent, AuditSink
 from app.config import Settings
+from app.db.persistence import DealStore, PostgresAuditChain
 from app.graph.build import build_graph
 from app.graph.nodes.extract_doc import ALLOWED_KINDS as ALLOWED_DOC_KINDS
 from app.graph.state import DealState, DocRef, new_id
@@ -25,6 +29,7 @@ from app.harness.llm import LLMClient
 from app.security.approval import ApprovalVerifier
 from app.security.storage import DocumentStore
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import InMemorySaver
 from redis import Redis
 
@@ -38,15 +43,41 @@ class DealRecord:
     running: bool = False
 
 
-class EventfulAuditSink(AuditSink):
-    """Forwards every audit event to the deal's SSE queue and keeps the chain."""
+class _Deals(dict[str, DealRecord]):
+    """In-memory cache of deals; a miss rehydrates the deal from the store, so every
+    ``in`` / ``[]`` / ``get`` works after a restart without callers knowing."""
 
-    def __init__(self, runner: DealRunner) -> None:
+    def __init__(self, load: Callable[[str], DealRecord | None]) -> None:
+        super().__init__()
+        self._load = load
+
+    def __missing__(self, key: str) -> DealRecord:
+        rec = self._load(key)
+        if rec is None:
+            raise KeyError(key)
+        self[key] = rec
+        return rec
+
+    def __contains__(self, key: object) -> bool:
+        return super().__contains__(key) or (isinstance(key, str) and self.get(key) is not None)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+
+class EventfulAuditSink(AuditSink):
+    """Forwards every audit event to the deal's SSE queue and keeps the chain
+    (in memory, or in Postgres when the runner has a store)."""
+
+    def __init__(self, runner: DealRunner, chain: AuditSink | None = None) -> None:
         self._runner = runner
-        self._fallback = InMemoryChainForwarder()
+        self._fallback: Any = chain if chain is not None else InMemoryChainForwarder()
 
     def emit(self, event: AuditEvent) -> str:
-        h = self._fallback.emit(event)
+        h: str = self._fallback.emit(event)
         rec = self._runner.deals.get(event.deal_id)
         if rec is not None:
             etype = "interrupt" if event.kind == "node_interrupted" else event.kind
@@ -64,14 +95,19 @@ class EventfulAuditSink(AuditSink):
         return h
 
     def head(self, tenant_id: str) -> str:
-        return self._fallback.head(tenant_id)
+        return str(self._fallback.head(tenant_id))
 
     def verify_chain(self, tenant_id: str) -> bool:
-        return self._fallback.verify_chain(tenant_id)
+        return bool(self._fallback.verify_chain(tenant_id))
 
     @property
     def events(self) -> list[tuple[AuditEvent, str]]:
-        return self._fallback.events
+        return list(self._fallback.events)
+
+    def trail(self, deal_id: str, tenant_id: str) -> list[tuple[AuditEvent, str]]:
+        if isinstance(self._fallback, PostgresAuditChain):
+            return list(self._fallback.trail(deal_id, tenant_id))
+        return [(e, h) for e, h in self._fallback.events if e.deal_id == deal_id]
 
 
 class InMemoryChainForwarder(AuditSink):
@@ -101,12 +137,15 @@ class InMemoryChainForwarder(AuditSink):
 
 
 class DealRunner:
-    def __init__(self, settings: Settings, docs: DocumentStore):
+    def __init__(self, settings: Settings, docs: DocumentStore, store: DealStore | None = None):
         self.settings = settings
         self.docs = docs
-        self.deals: dict[str, DealRecord] = {}
+        self.store = store
+        self.deals = _Deals(self._rehydrate)
         self._checkpointers: dict[str, InMemorySaver] = {}
-        self.audit = EventfulAuditSink(self)
+        self._pg_checkpointer: Any = None
+        self._pool: Any = None
+        self.audit = EventfulAuditSink(self, store.audit if store else None)
         self.anchor = MockAnchor()
         self.idempotency = Redis.from_url(settings.redis_url, decode_responses=True)
         raw_keys = json.loads(settings.approval_public_keys_json)
@@ -126,21 +165,74 @@ class DealRunner:
             timeout_s=settings.litellm_timeout_s,
         )
 
+    # -- persistence -------------------------------------------------------
+
+    async def start(self) -> None:
+        """Open the Postgres checkpointer (no-op without a store)."""
+        if self.store is None:
+            return
+        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+        from psycopg.rows import dict_row
+        from psycopg_pool import AsyncConnectionPool
+
+        # Owner connection: the checkpointer creates its own tables. These hold the
+        # graph's working state per thread_id and are not tenant-scoped (DECISIONS #21).
+        conninfo = self.settings.sync_database_url.replace("+psycopg", "")
+        self._pool = AsyncConnectionPool(
+            conninfo=conninfo,
+            max_size=5,
+            kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
+            open=False,
+        )
+        await self._pool.open()
+        saver = AsyncPostgresSaver(self._pool)
+        await saver.setup()
+        self._pg_checkpointer = saver
+
+    async def stop(self) -> None:
+        if self._pool is not None:
+            await self._pool.close()
+            self._pool = None
+            self._pg_checkpointer = None
+
+    def _new_budget(self, deal_id: str) -> DealBudget:
+        return DealBudget(
+            deal_id,
+            max_steps=self.settings.budget_max_steps,
+            max_tokens=self.settings.budget_max_tokens_per_deal,
+            max_cost_minor=self.settings.budget_max_cost_minor_per_deal,
+        )
+
+    def _rehydrate(self, deal_id: str) -> DealRecord | None:
+        if self.store is None:
+            return None
+        loaded = self.store.load(deal_id, self.settings.default_tenant)
+        if loaded is None:
+            return None
+        state, saved_budget = loaded
+        budget = self._new_budget(deal_id)
+        # restore the spend so a restart cannot reset a deal's kill-switch counters
+        for name, value in saved_budget.items():
+            setattr(budget, name, value)
+        return DealRecord(state=state, budget=budget, thread_id=deal_id)
+
+    def _persist(self, deal_id: str) -> None:
+        if self.store is None:
+            return
+        rec = self.deals[deal_id]
+        self.store.save(rec.state, rec.budget)
+
     # -- lifecycle ---------------------------------------------------------
 
     def create_deal(self, tenant_id: str, lc_ref: str | None = None) -> DealRecord:
         deal_id = new_id("deal")
         rec = DealRecord(
             state=DealState(deal_id=deal_id, tenant_id=tenant_id),
-            budget=DealBudget(
-                deal_id,
-                max_steps=self.settings.budget_max_steps,
-                max_tokens=self.settings.budget_max_tokens_per_deal,
-                max_cost_minor=self.settings.budget_max_cost_minor_per_deal,
-            ),
+            budget=self._new_budget(deal_id),
             thread_id=deal_id,
         )
         self.deals[deal_id] = rec
+        self._persist(deal_id)
         self.audit.emit(
             AuditEvent(kind="deal_created", deal_id=deal_id, tenant_id=tenant_id, payload={})
         )
@@ -161,6 +253,7 @@ class DealRunner:
             kind=kind if kind in ALLOWED_DOC_KINDS else "unknown",
         )
         rec.state.documents.append(ref)
+        self._persist(deal_id)
         self.audit.emit(
             AuditEvent(
                 kind="document_registered",
@@ -173,9 +266,14 @@ class DealRunner:
 
     # -- run / resume ------------------------------------------------------
 
-    def _checkpointer(self, deal_id: str) -> InMemorySaver:
-        """One checkpointer per deal: interrupts must survive across
-        run/resume calls (Postgres checkpointer in production)."""
+    def _checkpointer(self, deal_id: str) -> Any:
+        """Interrupts must survive across run/resume calls: the shared Postgres
+        checkpointer when persisting (also across restarts), else one in-memory
+        saver per deal."""
+        if self.store is not None:
+            if self._pg_checkpointer is None:
+                raise RuntimeError("DealRunner.start() was not awaited (no checkpointer)")
+            return self._pg_checkpointer
         if deal_id not in self._checkpointers:
             self._checkpointers[deal_id] = InMemorySaver()
         return self._checkpointers[deal_id]
@@ -208,7 +306,7 @@ class DealRunner:
             return
         rec.running = True
         graph = build_graph(self._graph_ctx(deal_id), checkpointer=self._checkpointer(deal_id))
-        config = {"configurable": {"thread_id": rec.thread_id}}
+        config: RunnableConfig = {"configurable": {"thread_id": rec.thread_id}}
         try:
             final = await graph.ainvoke(rec.state, config)
             rec.state = DealState.model_validate(final)
@@ -218,6 +316,7 @@ class DealRunner:
             rec.queue.put_nowait({"type": "error", "detail": type(e).__name__})
         finally:
             rec.running = False
+            self._persist(deal_id)
 
     async def resume(self, deal_id: str, resume_payload: dict[str, Any]) -> None:
         from langgraph.types import Command
@@ -233,7 +332,7 @@ class DealRunner:
             }
         rec.running = True
         graph = build_graph(self._graph_ctx(deal_id), checkpointer=self._checkpointer(deal_id))
-        config = {"configurable": {"thread_id": rec.thread_id}}
+        config: RunnableConfig = {"configurable": {"thread_id": rec.thread_id}}
         try:
             final = await graph.ainvoke(Command(resume=resume_payload), config)
             rec.state = DealState.model_validate(final)
@@ -243,6 +342,7 @@ class DealRunner:
             rec.queue.put_nowait({"type": "error", "detail": type(e).__name__})
         finally:
             rec.running = False
+            self._persist(deal_id)
 
     def _emit_interrupt_payload(self, deal_id: str, final: Any) -> None:
         """Forward the rich interrupt payload (kind, findings, fx options,
@@ -261,10 +361,10 @@ class DealRunner:
                 )
 
     def audit_trail(self, deal_id: str) -> list[dict[str, Any]]:
+        tenant = self._require(deal_id).state.tenant_id
         return [
             {"kind": e.kind, "payload": e.payload, "ts": e.ts, "hash": h}
-            for e, h in self.audit.events
-            if e.deal_id == deal_id
+            for e, h in self.audit.trail(deal_id, tenant)
         ]
 
     def _require(self, deal_id: str) -> DealRecord:

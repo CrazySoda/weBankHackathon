@@ -121,6 +121,35 @@ class TestCleanDeal:
         assert result["finance_offer"] is not None
 
 
+class TestParaphrasedSnippet:
+    async def test_paraphrased_snippet_is_dropped_not_escalated(
+        self, graph, fake_llm, docs_store
+    ):
+        def paraphrased(messages):
+            out = extraction_for_hint(messages)
+            if out.kind == "letter_of_credit":
+                out.fields[1] = FieldOut(
+                    name="currency",
+                    value="USD",
+                    confidence=0.99,
+                    snippet="Documentary credit currency is US dollars",  # not in the PDF
+                    page=1,
+                )
+            return out
+
+        fake_llm.hooks["ExtractionOutput"] = paraphrased
+        lc, inv = lc_and_inv("d_para", docs_store)
+        state = DealState(deal_id="d_para", tenant_id="t1", documents=[lc, inv])
+        result = await graph.ainvoke(state, config={"configurable": {"thread_id": "para"}})
+
+        # reaches approval instead of escalating at verify
+        intr = extract_interrupts(result)
+        assert intr and intr[0].value["kind"] == "human_approval"
+        quotes = [e.quote for f in result["findings"] for e in f.evidence]
+        assert quotes, "findings keep their grounded evidence"
+        assert all("US dollars" not in q for q in quotes)
+
+
 class TestFixableDiscrepancy:
     async def test_fixable_block_resolves_after_corrected_doc(self, graph, fake_llm, docs_store):
         def over_invoiced(messages):

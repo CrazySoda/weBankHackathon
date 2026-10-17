@@ -47,7 +47,7 @@ SEED_QUOTE_BOOK = {
 
 
 def _invoice_minor(state: DealState) -> int | None:
-    for d in state.extracted:
+    for d in state.current_extracted:
         if d.kind == "commercial_invoice":
             f = d.get("total_amount")
             if f is None:

@@ -17,7 +17,7 @@ SCHEDULE_FIELDS = ("presentation_date", "shipment_date")
 
 
 def fields_of(state: DealState, kind: str) -> dict[str, Any]:
-    for d in state.extracted:
+    for d in state.current_extracted:
         if d.kind == kind:
             return {f.name: f.value for f in d.fields}
     return {}

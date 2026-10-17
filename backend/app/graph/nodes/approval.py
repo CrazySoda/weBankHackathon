@@ -98,7 +98,7 @@ def execution_registry(ctx: NodeContext) -> ToolRegistry:
 
 
 def _payee(state: DealState) -> str | None:
-    for d in state.extracted:
+    for d in state.current_extracted:
         b = d.get("beneficiary") if d.kind == "commercial_invoice" else None
         if b is not None:
             return str(b.value)
@@ -128,7 +128,7 @@ async def human_approval(state: DealState, ctx: NodeContext) -> dict[str, Any]:
 
 
 def _amount(state: DealState) -> int | None:
-    for d in state.extracted:
+    for d in state.current_extracted:
         t = d.get("total_amount") if d.kind == "commercial_invoice" else None
         if t is None:
             continue

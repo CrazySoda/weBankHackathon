@@ -87,6 +87,11 @@ class WechatClient:
         if self._http is None:
             self._http = httpx.AsyncClient(timeout=10.0)
 
+    @property
+    def _client(self) -> httpx.AsyncClient:
+        assert self._http is not None  # set in __post_init__
+        return self._http
+
     # -- login ---------------------------------------------------------------
 
     async def code2session(self, code: str) -> tuple[str, str]:
@@ -95,7 +100,7 @@ class WechatClient:
         session_key is returned to the CALLER (server-side code only) and must
         never be logged, sent to the client, or persisted in plaintext.
         """
-        resp = await self._http.get(
+        resp = await self._client.get(
             f"{self.api_base}/sns/jscode2session",
             params={
                 "appid": self.app_id,
@@ -119,7 +124,7 @@ class WechatClient:
         # refresh lock: only one caller hits the API, others wait then read
         if not self.cache.get("wx:refresh_lock"):
             self.cache.set("wx:refresh_lock", "1", ttl_s=10)
-            resp = await self._http.get(
+            resp = await self._client.get(
                 f"{self.api_base}/cgi-bin/token",
                 params={
                     "grant_type": "client_credential",
@@ -150,7 +155,7 @@ class WechatClient:
         """Subscription notification. Deal number ONLY — no amounts, no names
         (rule: notifications contain no amounts or names)."""
         token = await self.access_token()
-        resp = await self._http.post(
+        resp = await self._client.post(
             f"{self.api_base}/cgi-bin/message/subscribe/send?access_token={token}",
             json={
                 "touser": openid,
@@ -188,7 +193,8 @@ class SoterResult(BaseModel):
 
     def payload(self) -> dict[str, Any]:
         try:
-            return json.loads(self.json_str)
+            parsed: dict[str, Any] = json.loads(self.json_str)
+            return parsed
         except json.JSONDecodeError as e:
             raise WechatError("soter json_str is not JSON") from e
 

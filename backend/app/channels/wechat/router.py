@@ -141,7 +141,7 @@ class NotifyBody(BaseModel):
 
 
 def _amount_minor(state: Any) -> int | None:
-    for d in state.extracted:
+    for d in state.current_extracted:
         if d.kind == "commercial_invoice":
             t = d.get("total_amount")
             if t is not None:

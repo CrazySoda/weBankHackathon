@@ -190,9 +190,11 @@ def merge_flags(existing: list[Flag], new: list[Flag]) -> list[Flag]:
 def merge_doc_refs(existing: list[DocRef], new: list[DocRef]) -> list[DocRef]:
     old_refs = [d if isinstance(d, DocRef) else DocRef.model_validate(d) for d in existing]
     new_refs = [d if isinstance(d, DocRef) else DocRef.model_validate(d) for d in new]
+    # Upload order is meaningful (a later upload of the same kind supersedes an earlier
+    # one, see DealState.current_extracted), so keep insertion order; never sort by id.
     merged = {d.doc_id: d for d in old_refs}
     merged.update({d.doc_id: d for d in new_refs})
-    return sorted(merged.values(), key=lambda d: d.doc_id)
+    return list(merged.values())
 
 
 def merge_pending_doc(
@@ -304,7 +306,7 @@ class PolicyDecision(BaseModel):
 class SignedApproval(BaseModel):
     deal_hash: str  # canonical hash of exactly what the approval screen rendered
     approver_id: str
-    method: Literal["webauthn_passkey", "wechat_soter", "pin_otp"]
+    method: Literal["webauthn_passkey", "wechat_soter", "pin_otp", "demo_key"]
     signature_b64: str
     signed_at: str  # ISO 8601 UTC
     nonce: str
@@ -376,6 +378,18 @@ class DealState(BaseModel):
 
     def open_findings(self) -> list[Finding]:
         return [f for f in self.findings if f.status == "open"]
+
+    @property
+    def current_extracted(self) -> list[ExtractedDoc]:
+        """The extractions in effect: per document kind, only the most recently uploaded
+        document's. A corrected upload supersedes the flawed original it replaces, so
+        every consumer (checks, FX, policy, the approval render) reads the same one.
+        Both extractions stay in ``extracted`` for the audit trail."""
+        order = {d.doc_id: i for i, d in enumerate(self.documents)}
+        latest: dict[str, ExtractedDoc] = {}
+        for doc in sorted(self.extracted, key=lambda d: order.get(d.doc_id, -1)):
+            latest[doc.kind] = doc
+        return sorted(latest.values(), key=lambda d: order.get(d.doc_id, -1))
 
     def blocked_by_injection(self) -> bool:
         return any(f.severity == "block" for f in self.injection_flags)
