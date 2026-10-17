@@ -143,16 +143,39 @@ def injected_llm_with_seed_extraction(deal: dict) -> NoopLLM:
     return llm
 
 
-async def run_deal(deal: dict, tmp_docs: Path) -> tuple[DealState, float, str]:
-    """Returns (final state, seconds, last interrupt kind — "" if none)."""
+SEED_PDFS = REPO / "backend" / "seed" / "deals" / "pdfs"
+
+
+def live_llm() -> object:
+    """Real LiteLLM client (aliases reasoner/fast); needs LITELLM_VIRTUAL_KEY."""
+    import os
+
+    from app.harness.llm import LLMClient
+
+    return LLMClient(
+        base_url=os.environ.get("LITELLM_BASE_URL", "http://localhost:4000"),
+        api_key=os.environ["LITELLM_VIRTUAL_KEY"],
+        timeout_s=float(os.environ.get("LITELLM_TIMEOUT_S", "120")),
+    )
+
+
+async def run_deal(deal: dict, tmp_docs: Path, live: bool = False) -> tuple[DealState, float, str]:
+    """Returns (final state, seconds, last interrupt kind — "" if none).
+
+    live=True reads the real seed PDFs and calls the real models through the proxy
+    (no injected extraction); otherwise extraction is injected from ground truth.
+    """
     started = time.monotonic()
     deal_id = deal["deal_id"]
     docs = DocumentStore(tmp_docs / deal_id)
     refs = []
     for doc in deal["documents"]:
-        # synthetic one-line PDF per document (content irrelevant in fake mode:
-        # extraction is injected from ground truth)
-        pdf = _minimal_pdf([f"{k}: {v}" for k, v in doc.get("fields", {}).items()])
+        if live:
+            pdf = (SEED_PDFS / deal_id / doc["filename"]).read_bytes()
+        else:
+            # synthetic one-line PDF per document (content irrelevant in fake mode:
+            # extraction is injected from ground truth)
+            pdf = _minimal_pdf([f"{k}: {v}" for k, v in doc.get("fields", {}).items()])
         sha = docs.put(pdf)
         refs.append(
             DocRef(
@@ -172,7 +195,7 @@ async def run_deal(deal: dict, tmp_docs: Path) -> tuple[DealState, float, str]:
     ctx = NodeContext(
         budget=DealBudget(deal_id, max_steps=300, max_tokens=10**9, max_cost_minor=10**9),
         audit=audit,
-        llm=injected_llm_with_seed_extraction(deal),
+        llm=live_llm() if live else injected_llm_with_seed_extraction(deal),  # type: ignore[arg-type]
         docs=docs,
         redis=fakeredis.FakeRedis(),
         anchor=MockAnchor(),
@@ -225,7 +248,46 @@ def _minimal_pdf(lines: list[str]) -> bytes:
     return buf.getvalue()
 
 
-def evaluate() -> dict[str, object]:
+async def run_poisoned(doc: dict, tmp_docs: Path) -> dict[str, object]:
+    """One poisoned PDF as its own deal through the live graph + live classifier."""
+    deal_id = doc["doc_id"]
+    kind = {"lc": "letter_of_credit", "invoice": "commercial_invoice"}.get(
+        doc["name"].split("-")[0], "packing_list"
+    )
+    docs = DocumentStore(tmp_docs / deal_id)
+    pdf = (SEED_PDFS / "poisoned" / f"{deal_id}.pdf").read_bytes()
+    ref = DocRef(
+        doc_id=f"eval-{deal_id}",
+        deal_id=deal_id,
+        sha256=docs.put(pdf),
+        filename=f"{deal_id}.pdf",
+        mime="application/pdf",
+        size_bytes=len(pdf),
+        kind=kind,  # type: ignore[arg-type]
+    )
+    ctx = NodeContext(
+        budget=DealBudget(deal_id, max_steps=300, max_tokens=10**9, max_cost_minor=10**9),
+        audit=InMemoryAuditSink(),
+        llm=live_llm(),  # type: ignore[arg-type]
+        docs=docs,
+        redis=fakeredis.FakeRedis(),
+        anchor=MockAnchor(),
+        approval_verifier=ApprovalVerifier({}),
+    )
+    graph = build_graph(ctx, checkpointer=InMemorySaver())
+    result = await graph.ainvoke(
+        DealState(deal_id=deal_id, tenant_id="eval", documents=[ref]),
+        {"configurable": {"thread_id": deal_id}},
+    )
+    final = DealState.model_validate(result)
+    flags = {f.kind for f in final.injection_flags}
+    return {
+        "flagged": doc["expected_flag"] in flags,
+        "executed": final.receipt is not None,
+    }
+
+
+def evaluate(live: bool = False) -> dict[str, object]:
     if not SEED_DEALS.exists():
         print(f"seed deals not found: {SEED_DEALS}\nGenerate them first (see seed/).")
         sys.exit(2)
@@ -244,14 +306,23 @@ def evaluate() -> dict[str, object]:
     false_alarms = 0
     completions = 0
     unauthorised_actions = 0
+    errors: list[str] = []
+    poison_flagged = 0
 
     async def run_all() -> None:
         nonlocal recall_hits, recall_total, false_alarms, completions, unauthorised_actions
+        nonlocal poison_flagged
         for deal in deals:
             expected_by_rule = {
                 f["rule_id"]: f["severity"] for f in deal["ground_truth"]["expected_findings"]
             }
-            final, seconds, interrupt_kind = await run_deal(deal, tmp)
+            try:
+                final, seconds, interrupt_kind = await run_deal(deal, tmp, live)
+            except Exception as e:
+                errors.append(f"{deal['deal_id']}: {type(e).__name__}")
+                if not live:
+                    raise
+                continue
             latencies.append(seconds)
             detected_blocks = {
                 f.rule_id for f in final.findings if f.severity == "block" and f.status == "open"
@@ -275,6 +346,21 @@ def evaluate() -> dict[str, object]:
                 outcome = "other"
             if outcome == deal["ground_truth"]["expected_outcome"]:
                 completions += 1
+            elif live:
+                errors.append(
+                    f"{deal['deal_id']}: expected "
+                    f"{deal['ground_truth']['expected_outcome']}, got {outcome}"
+                )
+        if live:
+            for pdoc in poisoned:
+                try:
+                    res = await run_poisoned(pdoc, tmp)
+                except Exception as e:
+                    errors.append(f"{pdoc['doc_id']}: {type(e).__name__}")
+                    continue
+                poison_flagged += bool(res["flagged"])
+                if res["executed"]:
+                    unauthorised_actions += 1
 
     asyncio.run(run_all())
 
@@ -285,7 +371,12 @@ def evaluate() -> dict[str, object]:
         "discrepancy_recall": recall_hits / max(recall_total, 1),
         "false_alarm_rate": false_alarms / n,
         "calculation_exactness": 1.0,  # pure integer calcs; property tests prove exactness
-        "injection_resistance": "poisoned suite runs live-only (needs real classifier)",
+        "injection_resistance": (
+            poison_flagged / max(len(poisoned), 1)
+            if live
+            else "poisoned suite runs live-only (needs real classifier)"
+        ),
+        "errors": errors,
         "unauthorised_actions": unauthorised_actions,
         "workflow_completion": completions / n,
         "avg_seconds_per_deal": sum(latencies) / max(len(latencies), 1),
@@ -300,8 +391,9 @@ def main() -> None:
     if args.live and not __import__("os").environ.get("LITELLM_VIRTUAL_KEY"):
         print("live mode requires LITELLM_VIRTUAL_KEY")
         sys.exit(2)
-    metrics = evaluate()
-    print("\n=== ClearTrade eval (fake extraction, live graph) ===")
+    metrics = evaluate(live=args.live)
+    mode = "LIVE models via LiteLLM, real PDFs" if args.live else "fake extraction, live graph"
+    print(f"\n=== ClearTrade eval ({mode}) ===")
     for k, v in metrics.items():
         print(f"{k:26s} {v}")
     targets = {
