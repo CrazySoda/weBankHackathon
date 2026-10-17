@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.graph.state import (
     DealState,
@@ -46,6 +46,13 @@ class FieldOut(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     snippet: str = ""
     page: int | None = None
+
+    # The model-facing schema must list `snippet` as required: an optional snippet is
+    # dropped by some models (seen live), leaving findings with no evidence to ground.
+    # The Python default stays so scripted extractions can omit it.
+    model_config = ConfigDict(
+        json_schema_extra=lambda schema: schema.setdefault("required", []).append("snippet")
+    )
 
 
 class ExtractionOutput(BaseModel):
@@ -104,6 +111,10 @@ async def extract_doc(state: DealState, ctx: NodeContext) -> dict[str, Any]:
 
     parsed = result.output
     kind = parsed.kind if parsed.kind in ALLOWED_KINDS else doc.kind
+    # DECISION: a snippet the model paraphrased (not verbatim in the document) is dropped
+    # here, so it can never be attached as evidence. Compliance builds each finding's
+    # evidence from every field's snippet and `verify` requires all quotes to be verbatim;
+    # without this, one paraphrased snippet on an unrelated field escalates the deal.
     fields = [
         ExtractedField(
             name=f.name,
@@ -111,7 +122,7 @@ async def extract_doc(state: DealState, ctx: NodeContext) -> dict[str, Any]:
             confidence=f.confidence,
             source=SourceRef(
                 page=f.page,
-                snippet=f.snippet[:200],
+                snippet=f.snippet[:200] if f.snippet[:200] in text else "",
             ),
         )
         for f in parsed.fields
