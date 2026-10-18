@@ -26,10 +26,37 @@ const TYPES: Array<{ id: DocKind; label: string }> = [
   { id: "unknown", label: "Other / combined PDF" },
 ];
 
+interface StagedFile {
+  id: string;
+  file: File;
+  kind: DocKind;
+}
+
+function detectDocKind(filename: string): DocKind {
+  const lower = filename.toLowerCase();
+  if (lower.includes("lc") || lower.includes("credit") || lower.includes("mt700") || lower.includes("lca")) {
+    return "letter_of_credit";
+  }
+  if (lower.includes("inv") || lower.includes("invoice") || lower.includes("bill_of_sale")) {
+    return "commercial_invoice";
+  }
+  if (lower.includes("pl") || lower.includes("pack") || lower.includes("packing")) {
+    return "packing_list";
+  }
+  if (lower.includes("bl") || lower.includes("lading") || lower.includes("bol") || lower.includes("ocean") || lower.includes("waybill")) {
+    return "bill_of_lading";
+  }
+  if (lower.includes("sched") || lower.includes("presentation")) {
+    return "presentation_schedule";
+  }
+  return "unknown";
+}
+
 export default function UploadModal({ isOpen, onClose, onUpload, onRemoveDocument, removingDocId, isUploading, state, onCheckReadiness, isChecking, isRunning }: UploadModalProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [kind, setKind] = useState<DocKind>("letter_of_credit");
-  const [file, setFile] = useState<File | null>(null);
+  const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
+  const [uploadProgress, setUploadProgress] = useState("");
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addedNotice, setAddedNotice] = useState("");
@@ -53,30 +80,69 @@ export default function UploadModal({ isOpen, onClose, onUpload, onRemoveDocumen
   const close = () => {
     if (isUploading) return;
     setError(null);
-    setFile(null);
+    setStagedFiles([]);
+    setUploadProgress("");
     setAddedNotice("");
     onClose();
   };
 
-  const chooseFile = (candidate?: File) => {
+  const addFiles = (candidates: File[]) => {
     setError(null);
-    if (!candidate) return;
-    const allowed = /\.(pdf|jpe?g|png)$/i.test(candidate.name);
-    if (!allowed) return setError("Choose a PDF, JPG, or PNG file.");
-    if (candidate.size > 10 * 1024 * 1024) return setError("Files must be smaller than 10 MB.");
-    setFile(candidate);
+    if (!candidates.length) return;
+    const newItems: StagedFile[] = [];
+    for (const candidate of candidates) {
+      const allowed = /\.(pdf|jpe?g|png)$/i.test(candidate.name);
+      if (!allowed) {
+        setError("One or more files skipped: must be a PDF, JPG, or PNG file.");
+        continue;
+      }
+      if (candidate.size > 10 * 1024 * 1024) {
+        setError(`File ${candidate.name} skipped: exceeds 10 MB limit.`);
+        continue;
+      }
+      // If single file and user explicitly selected a kind other than default, prioritize kind; otherwise auto-detect
+      const detected = candidates.length === 1 && kind !== "unknown" ? kind : detectDocKind(candidate.name);
+      newItems.push({
+        id: Math.random().toString(36).substring(2, 9),
+        file: candidate,
+        kind: detected,
+      });
+    }
+    if (newItems.length > 0) {
+      setStagedFiles((prev) => [...prev, ...newItems]);
+    }
   };
 
-  const submit = async () => {
-    if (!file) return setError("Choose a file to continue.");
+  const removeStagedFile = (id: string) => {
+    setStagedFiles((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const updateStagedKind = (id: string, newKind: DocKind) => {
+    setStagedFiles((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, kind: newKind } : item))
+    );
+  };
+
+  const submitBatch = async () => {
+    if (!stagedFiles.length) return setError("Choose or drop one or more files to continue.");
     setError(null);
     try {
-      await onUpload(file, kind);
-      setAddedNotice(`${file.name} added. Add another file or check readiness.`);
-      setFile(null);
+      for (let i = 0; i < stagedFiles.length; i++) {
+        const item = stagedFiles[i];
+        setUploadProgress(`Adding ${i + 1} of ${stagedFiles.length}: ${item.file.name}…`);
+        await onUpload(item.file, item.kind);
+      }
+      setAddedNotice(
+        stagedFiles.length === 1
+          ? `${stagedFiles[0].file.name} added. Add more files or check readiness.`
+          : `${stagedFiles.length} documents added successfully. Check readiness or add more.`
+      );
+      setStagedFiles([]);
       if (inputRef.current) inputRef.current.value = "";
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The file could not be uploaded.");
+      setError(cause instanceof Error ? cause.message : "The files could not be uploaded.");
+    } finally {
+      setUploadProgress("");
     }
   };
 
@@ -84,7 +150,10 @@ export default function UploadModal({ isOpen, onClose, onUpload, onRemoveDocumen
     <section className="upload-modal" role="dialog" aria-modal="true" aria-labelledby="upload-title">
       <header className="upload-modal-head">
         <div className="upload-modal-icon"><ArrowUpFromLine size={19}/></div>
-        <div><h2 id="upload-title">Trade documents</h2><p>Add files one by one. Your documents stay visible here.</p></div>
+        <div>
+          <h2 id="upload-title">Trade documents</h2>
+          <p>Drop single or multiple files at once. Document types are auto-classified.</p>
+        </div>
         <button className="icon-button" onClick={close} disabled={isUploading} aria-label="Close"><X size={19}/></button>
       </header>
       <div className="upload-modal-content">
@@ -123,22 +192,125 @@ export default function UploadModal({ isOpen, onClose, onUpload, onRemoveDocumen
               </article>;
             })}
           </div>}
+
           <section className={`upload-add-card ${documents.length === 0 ? "empty" : ""}`} aria-label="Add a document">
-            <div className="upload-add-card-head"><span className="upload-add-icon"><ArrowUpFromLine size={16}/></span><span><strong>{file ? "Ready to add" : "Add a document"}</strong><small>PDF, JPG, or PNG · under 10 MB</small></span></div>
-            <label className="upload-label" htmlFor="document-kind">Document type</label>
-            <select id="document-kind" className="upload-kind-select" value={kind} onChange={(event) => setKind(event.target.value as DocKind)}>
-              {TYPES.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
-            </select>
-            <input ref={inputRef} className="visually-hidden" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(event) => chooseFile(event.target.files?.[0])}/>
-            <button className={`upload-dropzone ${dragging ? "dragging" : ""} ${file ? "has-file" : ""}`} type="button"
+            <div className="upload-add-card-head">
+              <span className="upload-add-icon"><ArrowUpFromLine size={16}/></span>
+              <span>
+                <strong>{stagedFiles.length ? `${stagedFiles.length} file${stagedFiles.length > 1 ? "s" : ""} staged` : "Batch drop box"}</strong>
+                <small>Drop one or multiple files (.pdf, .jpg, .png)</small>
+              </span>
+            </div>
+
+            <input
+              ref={inputRef}
+              className="visually-hidden"
+              type="file"
+              multiple
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={(event) => {
+                if (event.target.files) {
+                  addFiles(Array.from(event.target.files));
+                }
+              }}
+            />
+
+            {/* Drag & drop box */}
+            <button
+              className={`upload-dropzone ${dragging ? "dragging" : ""} ${stagedFiles.length ? "has-file" : ""}`}
+              type="button"
               onClick={() => inputRef.current?.click()}
               onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
-              onDrop={(event) => { event.preventDefault(); setDragging(false); chooseFile(event.dataTransfer.files[0]); }}>
-              <span className="upload-drop-icon">{file ? <FileText size={19}/> : <Image size={19}/>}</span>
-              {file ? <><strong>{file.name}</strong><span>{formatBytes(file.size)} · Click to change</span></> : <><strong>Drop a file here</strong><span>or <em>browse files</em></span></>}
+              onDrop={(event) => {
+                event.preventDefault();
+                setDragging(false);
+                if (event.dataTransfer.files) {
+                  addFiles(Array.from(event.dataTransfer.files));
+                }
+              }}
+              style={{ minHeight: stagedFiles.length ? 90 : 140 }}
+            >
+              <span className="upload-drop-icon">{stagedFiles.length ? <FileText size={19}/> : <Image size={19}/>}</span>
+              <strong>{stagedFiles.length ? "Click or drop more files to add to batch" : "Drop files here (single or multiple)"}</strong>
+              <span>or <em>browse files</em></span>
             </button>
-            {file && <button className="btn btn-primary upload-add-button" onClick={() => void submit()} disabled={isUploading}>{isUploading ? <Loader2 size={15} className="spinner"/> : <ArrowUpFromLine size={15}/>} {isUploading ? "Adding…" : "Add document"}</button>}
+
+            {/* Staged files queue */}
+            {stagedFiles.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, margin: "6px 0 10px", maxHeight: 180, overflowY: "auto" }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-dim)", display: "flex", justifyContent: "space-between" }}>
+                  <span>Staged ({stagedFiles.length}):</span>
+                  <button
+                    type="button"
+                    className="btn-link"
+                    style={{ fontSize: 10, color: "var(--text-faint)", background: "none", border: "none", cursor: "pointer" }}
+                    onClick={() => setStagedFiles([])}
+                  >
+                    Clear all
+                  </button>
+                </div>
+                {stagedFiles.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      padding: "6px 10px",
+                      background: "rgba(0,0,0,0.25)",
+                      border: "1px solid #2c3e32",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1, display: "flex", flexDirection: "column" }}>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#e4ede6", fontWeight: 500 }} title={item.file.name}>
+                        {item.file.name}
+                      </span>
+                      <span style={{ fontSize: 10, color: "#8c9b91" }}>
+                        {formatBytes(item.file.size)}
+                      </span>
+                    </div>
+
+                    <select
+                      className="upload-kind-select"
+                      style={{ height: 30, fontSize: 11, padding: "0 6px", width: "auto", minWidth: 140 }}
+                      value={item.kind}
+                      onChange={(e) => updateStagedKind(item.id, e.target.value as DocKind)}
+                      title="Document type"
+                    >
+                      {TYPES.map((type) => (
+                        <option key={type.id} value={type.id}>{type.label}</option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      className="icon-button"
+                      onClick={() => removeStagedFile(item.id)}
+                      title="Remove file from staging"
+                      style={{ padding: 4, background: "none", border: "none", color: "#8c9b91", cursor: "pointer" }}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {stagedFiles.length > 0 && (
+              <button
+                className="btn btn-primary upload-add-button"
+                onClick={() => void submitBatch()}
+                disabled={isUploading}
+                style={{ width: "100%", justifyContent: "center" }}
+              >
+                {isUploading ? <Loader2 size={15} className="spinner"/> : <ArrowUpFromLine size={15}/>}
+                {isUploading ? (uploadProgress || "Uploading…") : stagedFiles.length === 1 ? "Add 1 document" : `Upload all ${stagedFiles.length} documents`}
+              </button>
+            )}
           </section>
         </div>
 
@@ -149,7 +321,7 @@ export default function UploadModal({ isOpen, onClose, onUpload, onRemoveDocumen
       <footer className="upload-modal-foot">
         <button className="btn btn-secondary" onClick={close} disabled={isUploading}>Done</button>
         <div className="upload-modal-actions">
-          <button className="btn btn-secondary" onClick={() => void onCheckReadiness()} disabled={!state?.documents.length || isUploading || isRunning || isChecking || Boolean(file)} title="Extract documents and check required details without starting the full deal review">{isChecking ? <Loader2 size={15} className="spinner"/> : <Sparkles size={15}/>} {isChecking ? "Checking…" : "Check readiness"}</button>
+          <button className="btn btn-secondary" onClick={() => void onCheckReadiness()} disabled={!state?.documents.length || isUploading || isRunning || isChecking || stagedFiles.length > 0} title="Extract documents and check required details without starting the full deal review">{isChecking ? <Loader2 size={15} className="spinner"/> : <Sparkles size={15}/>} {isChecking ? "Checking…" : "Check readiness"}</button>
         </div>
       </footer>
     </section>
