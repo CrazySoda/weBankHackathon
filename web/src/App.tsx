@@ -1,41 +1,52 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DocKind, StreamEvent } from "./api";
-import { api, shortHash } from "./api";
+import { api } from "./api";
 import ApprovalBar from "./components/ApprovalBar";
 import PipelineVisualizer from "./components/PipelineVisualizer";
 import DemoScenarioLoader from "./components/DemoScenarioLoader";
 import UploadModal from "./components/UploadModal";
-import { LoadingSkeleton, EmptyState, ErrorState } from "./components/StateViews";
+import { BrandLogo } from "./components/BrandLogo";
+import { LoadingSkeleton, ErrorState } from "./components/StateViews";
 import Overview from "./panels/Overview";
 import Findings from "./panels/Findings";
 import Fx from "./panels/Fx";
 import CashFlow from "./panels/CashFlow";
 import Documents from "./panels/Documents";
 import Audit from "./panels/Audit";
+import Copilot, { clearCopilotHistory } from "./components/Copilot";
+import { useConfirm } from "./components/ConfirmDialog";
+import { toast } from "sonner";
 import {
   FlaskConical,
   Play,
   Loader2,
   CheckCircle2,
   AlertOctagon,
-  Clock,
   Plus,
   FileUp,
-  Layers,
   Copy,
   Check,
   Lock,
   Trash2,
+  MessageCircle,
+  Sparkles,
+  ArrowRight,
+  Search,
+  CircleCheck,
+  CircleAlert,
+  Clock3,
+  FileText,
 } from "lucide-react";
+import { documentReadiness } from "./documentReadiness";
 
 const DEALS_KEY = "cleartrade.deals";
 
 type TabId = "overview" | "findings" | "fx" | "cash" | "documents" | "audit";
 
 const TABS: Array<{ id: TabId; label: string }> = [
-  { id: "overview", label: "Overview" },
-  { id: "findings", label: "Findings" },
+  { id: "overview", label: "Summary" },
+  { id: "findings", label: "Issues" },
   { id: "fx", label: "FX" },
   { id: "cash", label: "Cash flow" },
   { id: "documents", label: "Documents" },
@@ -58,10 +69,14 @@ function loadDeals(): string[] {
 
 export default function App() {
   const queryClient = useQueryClient();
+  const [confirm, confirmDialog] = useConfirm();
   const [deals, setDeals] = useState<string[]>(loadDeals);
   const [selected, setSelected] = useState<string | null>(() => loadDeals()[0] ?? null);
   const [tab, setTab] = useState<TabId>("overview");
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [copilotOpen, setCopilotOpen] = useState(false);
+  const [dealSearch, setDealSearch] = useState("");
 
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [streaming, setStreaming] = useState(false);
@@ -138,7 +153,7 @@ export default function App() {
         }
         if (e.type === "done" || e.type === "error") {
           if (e.type === "error") {
-            setRunError(parsed.detail ?? "Pipeline execution halted with an error");
+            setRunError("We couldn’t finish the review. Please try again.");
           }
           stopStream();
           void queryClient.invalidateQueries({ queryKey: ["deal", dealId] });
@@ -161,10 +176,10 @@ export default function App() {
       es.onerror = (e) => {
         if ("data" in e && typeof (e as MessageEvent).data === "string") {
           try {
-            const errData = JSON.parse((e as MessageEvent).data);
-            setRunError(errData.detail ?? "Pipeline execution error");
+            JSON.parse((e as MessageEvent).data);
+            setRunError("We couldn’t finish the review. Please try again.");
           } catch {
-            setRunError("Server stream error");
+            setRunError("We couldn’t finish the review. Please try again.");
           }
           stopStream();
           return;
@@ -195,20 +210,52 @@ export default function App() {
       setEvents([]);
       setInterrupt(null);
       void queryClient.invalidateQueries({ queryKey: ["deal", res.deal_id] });
+      toast.success("New deal created", { description: "Add your trade documents to get started." });
     },
+    onError: (error) => toast.error("Could not create deal", { description: error.message }),
   });
 
   const runDeal = useMutation({
     mutationFn: (dealId: string) => api.runDeal(dealId),
     onSuccess: (_res, dealId) => openStream(dealId),
-    onError: (e) => setRunError(e instanceof Error ? e.message : String(e)),
+    onError: (e) => {
+      const message = e instanceof Error ? e.message : String(e);
+      setRunError(message);
+      toast.error("Review could not start", { description: message });
+    },
+  });
+
+  const readinessCheck = useMutation({
+    mutationFn: (dealId: string) => api.checkReadiness(dealId),
+    onSuccess: (result, dealId) => {
+      queryClient.setQueryData(["deal", dealId], result);
+      toast.success("Document check complete", { description: "Readiness results updated below." });
+      void queryClient.invalidateQueries({ queryKey: ["audit", dealId] });
+    },
+    onError: (error) => toast.error("Could not check documents", { description: error.message }),
+  });
+
+  const removeDocument = useMutation({
+    mutationFn: ({ dealId, docId }: { dealId: string; docId: string }) => api.removeDocument(dealId, docId),
+    onSuccess: (_result, { dealId }) => {
+      void queryClient.invalidateQueries({ queryKey: ["deal", dealId] });
+      void queryClient.invalidateQueries({ queryKey: ["audit", dealId] });
+      toast.success("Document removed from deal");
+    },
+    onError: (error) => toast.error("Could not remove document", { description: error.message }),
   });
 
   const handleUploadDocument = async (file: File, kind: DocKind) => {
     if (!selected) return;
-    await api.uploadDocument(selected, file, kind);
-    void queryClient.invalidateQueries({ queryKey: ["deal", selected] });
-    void queryClient.invalidateQueries({ queryKey: ["audit", selected] });
+    setUploading(true);
+    try {
+      await api.uploadDocument(selected, file, kind);
+      toast.success("Document added", { description: file.name });
+      void queryClient.invalidateQueries({ queryKey: ["deal", selected] });
+      void queryClient.invalidateQueries({ queryKey: ["audit", selected] });
+    } finally {
+      setUploading(false);
+    }
   };
 
   function selectDeal(id: string) {
@@ -234,14 +281,22 @@ export default function App() {
     if (!selected) return;
     void navigator.clipboard.writeText(selected);
     setCopiedId(true);
+    toast.success("Deal ID copied");
     setTimeout(() => setCopiedId(false), 1500);
   };
 
-  const handleDeleteDeal = (idToDelete: string, e: React.MouseEvent) => {
+  const handleDeleteDeal = async (idToDelete: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const ok = await confirm({
+      title: "Remove this deal from the list?",
+      message: `Deal ${idToDelete} and its copilot conversations will be removed from this browser. The saved deal record and audit trail stay available.`,
+      confirmLabel: "Remove deal",
+    });
+    if (!ok) return;
     const nextDeals = deals.filter((d) => d !== idToDelete);
     setDeals(nextDeals);
     localStorage.setItem(DEALS_KEY, JSON.stringify(nextDeals));
+    clearCopilotHistory(idToDelete);
     if (selected === idToDelete) {
       const nextSelected = nextDeals[0] ?? null;
       setSelected(nextSelected);
@@ -251,9 +306,14 @@ export default function App() {
     }
   };
 
-  const handleClearAllDeals = () => {
+  const handleClearAllDeals = async () => {
     if (deals.length === 0) return;
-    if (window.confirm("Clear all deals from console history?")) {
+    const ok = await confirm({
+      title: "Clear recent deals?",
+      message: "Your recent deals and their copilot conversations will be removed from this browser. The saved deal records and audit trails stay available.",
+      confirmLabel: "Clear history",
+    });
+    if (ok) {
       stopStream();
       setDeals([]);
       setSelected(null);
@@ -261,6 +321,7 @@ export default function App() {
       setInterrupt(null);
       setRunError(null);
       localStorage.removeItem(DEALS_KEY);
+      clearCopilotHistory();
     }
   };
 
@@ -271,49 +332,61 @@ export default function App() {
     !state.receipt;
 
   const openFindingsCount = state ? state.findings.filter((f) => f.status === "open").length : 0;
+  const coreReadiness = documentReadiness(state);
+  const coreUploaded = coreReadiness.filter((item) => item.uploaded).length;
+  const unclassifiedCount = state?.documents.filter((doc) =>
+    doc.kind === "unknown" && !state.extracted.some((extracted) => extracted.doc_id === doc.doc_id),
+  ).length ?? 0;
+  const visibleDeals = deals.filter((id) => id.toLowerCase().includes(dealSearch.trim().toLowerCase()));
 
   return (
     <div className="shell">
       {/* Sleek, Uncluttered Sidebar */}
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-name">
-            <span className="mark">CT</span> ClearTrade
-          </div>
-          <div className="brand-sub">institutional trade finance engine</div>
+          <BrandLogo />
+          <div className="brand-sub">Trade, made clearer</div>
         </div>
 
-        {/* 1-Click Demo Scenarios */}
-        <div style={{ padding: "12px 14px 4px", borderBottom: "1px solid var(--border-subtle)" }}>
-          <DemoScenarioLoader
-            tenantId="demo-tenant"
-            onScenarioLoaded={handleScenarioLoaded}
-          />
-        </div>
-
-        {/* Clean Action Buttons */}
+        {/* Primary workspace actions */}
         <div className="sidebar-actions" style={{ padding: "12px 14px" }}>
           <button
             className="btn btn-primary"
             onClick={() => createDeal.mutate()}
             disabled={createDeal.isPending}
-            style={{ width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 8 }}
+            style={{ width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
           >
             <Plus size={14} />
-            <span>{createDeal.isPending ? "Creating…" : "New Empty Deal"}</span>
+            <span>{createDeal.isPending ? "Creating…" : "New deal"}</span>
           </button>
 
-          <button
-            className="btn btn-secondary"
-            onClick={() => setIsUploadModalOpen(true)}
-            disabled={!selected}
-            style={{ width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-            title={selected ? "Attach trade document" : "Select a deal first to upload documents"}
-          >
-            <FileUp size={14} />
-            <span>Upload Document…</span>
-          </button>
         </div>
+
+        <section className="sidebar-readiness" aria-label="Document readiness">
+          <div className="sidebar-readiness-head">
+            <div><span className="sidebar-eyebrow">Deal setup</span><strong>{coreUploaded}/3 <small>core docs</small></strong></div>
+            <button className="readiness-orbit" type="button" onClick={() => selected && setIsUploadModalOpen(true)} disabled={!selected} aria-label="Add deal documents" title={selected ? "Add deal documents" : "Select a deal first"} style={{ "--progress": `${(coreUploaded / 3) * 100}%` } as React.CSSProperties}>
+              <FileUp size={15}/>
+            </button>
+          </div>
+          <div className="sidebar-progress"><span style={{ width: `${(coreUploaded / 3) * 100}%` }}/></div>
+          <p>{state ? "Recommended documents for a useful first review" : "Start a deal to build your document set"}</p>
+          <div className="sidebar-readiness-list">
+            {coreReadiness.map(({ requirement, uploaded, status, message }) => {
+              const StatusIcon = status === "ready" ? CircleCheck : status === "review" ? CircleAlert : uploaded ? Clock3 : FileText;
+              return <button key={requirement.kind} className={`sidebar-readiness-row ${status}`} onClick={() => {
+                setTab("documents");
+                if (!uploaded && selected) setIsUploadModalOpen(true);
+              }} disabled={!selected} title={message}>
+                <StatusIcon size={14}/><span>{requirement.label}</span><small>{uploaded ? status === "ready" ? "Ready" : status === "review" ? "Check" : "Added" : "Add"}</small>
+              </button>;
+            })}
+          </div>
+          {unclassifiedCount > 0 && <div className="sidebar-unclassified">{unclassifiedCount} file{unclassifiedCount === 1 ? "" : "s"} still need a document type</div>}
+          <button className="sidebar-checklist-link" onClick={() => { setTab("documents"); if (selected) setIsUploadModalOpen(true); }} disabled={!selected}>
+            Review documents and add files <ArrowRight size={13}/>
+          </button>
+        </section>
 
         {/* Deal History List */}
         <div className="deal-list">
@@ -324,20 +397,21 @@ export default function App() {
             {deals.length > 0 && (
               <button
                 className="btn-link"
-                onClick={handleClearAllDeals}
-                title="Clear all deals from history"
+                onClick={() => void handleClearAllDeals()}
+                title="Clear recent deals"
                 style={{ fontSize: 10, color: "var(--text-faint)", cursor: "pointer", background: "none", border: "none", padding: "2px 4px" }}
               >
-                Clear All
+                Clear history
               </button>
             )}
           </div>
+          {deals.length > 0 && <label className="deal-search"><Search size={14}/><input value={dealSearch} onChange={(event) => setDealSearch(event.target.value)} placeholder="Find a deal" aria-label="Find a recent deal"/></label>}
           {deals.length === 0 && (
             <div className="sidebar-empty">
-              No deals yet. Click a demo scenario above to test the verification pipeline.
+              Your recent deals will appear here.
             </div>
           )}
-          {deals.map((id) => (
+          {visibleDeals.map((id) => (
             <div
               key={id}
               className={`deal-item ${id === selected ? "selected" : ""}`}
@@ -347,9 +421,9 @@ export default function App() {
               style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
             >
               <div style={{ minWidth: 0, flex: 1 }}>
-                <span className="deal-id">{id}</span>
+              <span className="deal-id" title={id}>Deal · {id.slice(-6).toUpperCase()}</span>
                 <span className="deal-meta">
-                  <span>synthetic</span>
+                  <span>Sample deal</span>
                   {id === selected && (streaming || running) && (
                     <span className="live-dot" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                       <Loader2 size={10} className="spinner" /> live
@@ -359,7 +433,7 @@ export default function App() {
               </div>
               <button
                 className="btn-link delete-deal-btn"
-                onClick={(e) => handleDeleteDeal(id, e)}
+                onClick={(e) => void handleDeleteDeal(id, e)}
                 title="Delete this deal from history"
                 style={{
                   background: "transparent",
@@ -387,22 +461,27 @@ export default function App() {
               </button>
             </div>
           ))}
+          {deals.length > 0 && visibleDeals.length === 0 && <div className="sidebar-empty">No deals match “{dealSearch}”.</div>}
+        </div>
+        <div className="sidebar-assistant">
+          <div><span className="sidebar-assistant-icon"><Sparkles size={15}/></span><span><strong>Need a hand?</strong><small>Ask about this deal</small></span></div>
+          <button onClick={() => setCopilotOpen(true)}><MessageCircle size={15}/> Ask Copilot</button>
         </div>
       </aside>
 
       {/* Main Workspace */}
       <main className="main">
-        {/* Institutional Top Bar */}
+        {/* Deal workspace header */}
         <header className="topbar">
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span className="topbar-title mono" style={{ fontSize: 14 }}>
-              {selected ?? "No deal selected"}
+            <span className="topbar-title" style={{ fontSize: 14 }}>
+              {selected ? `Deal · ${selected.slice(-6).toUpperCase()}` : "Your workspace"}
             </span>
             {selected && (
               <button
                 className="btn-link mono faint"
                 onClick={copyDealId}
-                title="Copy Deal ID"
+            title="Copy deal reference"
                 style={{ cursor: "pointer", color: "var(--text-dim)", display: "flex", alignItems: "center" }}
               >
                 {copiedId ? <Check size={14} color="var(--status-pass)" /> : <Copy size={14} />}
@@ -414,36 +493,43 @@ export default function App() {
           {running && (
             <span className="chip" style={{ background: "rgba(6, 182, 212, 0.15)", color: "var(--accent-cyan)", border: "1px solid var(--accent-cyan)" }}>
               <Loader2 size={12} className="spinner" />
-              <span>RUNNING</span>
+                <span>Reviewing</span>
             </span>
           )}
           {!running && state?.receipt && (
             <span className="chip chip-decision-allow">
               <CheckCircle2 size={12} />
-              <span>EXECUTED</span>
+              <span>Complete</span>
             </span>
           )}
           {!running && state?.escalation_reason && (
             <span className="chip chip-sev-block">
               <AlertOctagon size={12} />
-              <span>ESCALATED</span>
+              <span>Needs help</span>
             </span>
           )}
           {!running && interrupt && !state?.receipt && !state?.escalation_reason && (
             <span className="chip chip-sev-warn">
               <Lock size={12} />
-              <span>APPROVAL PENDING</span>
+              <span>Ready for your approval</span>
             </span>
           )}
 
           <span className="topbar-spacer" />
 
-          {/* Permanent Synthetic Data Badge */}
+          {/* Sample data label */}
           <span className="badge-synthetic" title="ClearTrade operates entirely with synthetic demonstration data">
             <FlaskConical size={12} aria-hidden="true" />
-            <span>SYNTHETIC DATA</span>
+            <span>DEMO DATA</span>
           </span>
 
+          <button
+            className="btn btn-secondary copilot-trigger"
+            onClick={() => setCopilotOpen((open) => !open)}
+            aria-expanded={copilotOpen}
+          >
+            <MessageCircle size={16} /> <span>Ask copilot</span>
+          </button>
           <button
             className="btn btn-primary"
             style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
@@ -453,12 +539,12 @@ export default function App() {
             {streaming || running ? (
               <>
                 <Loader2 size={14} className="spinner" />
-                <span>Running Pipeline…</span>
+                <span>Checking documents…</span>
               </>
             ) : (
               <>
                 <Play size={14} />
-                <span>Run Deal</span>
+                <span>Review deal</span>
               </>
             )}
           </button>
@@ -466,7 +552,7 @@ export default function App() {
 
         {/* Tab Navigation */}
         <nav className="tabs">
-          {TABS.map((t) => (
+          {TABS.filter((t) => ["overview", "findings", "documents"].includes(t.id)).map((t) => (
             <button
               key={t.id}
               className={`tab ${tab === t.id ? "active" : ""}`}
@@ -483,16 +569,35 @@ export default function App() {
               )}
             </button>
           ))}
+          <label className="details-select-label">More
+            <select className="details-select" value={["fx", "cash", "audit"].includes(tab) ? tab : ""} onChange={(event) => event.target.value && setTab(event.target.value as TabId)}>
+              <option value="" disabled>Choose a view</option>
+              <option value="fx">FX routes</option>
+              <option value="cash">Cash forecast</option>
+              <option value="audit">Review history</option>
+            </select>
+          </label>
         </nav>
 
         {/* Content Area */}
-        <div className="content">
+        <div className={`content ${selected && tab === "overview" ? "content-overview" : ""}`}>
           {!selected ? (
-            <EmptyState
-              title="No Deal Selected"
-              message="Choose a 1-click demo scenario from the sidebar or create a new deal to run the trade finance pre-flight engine."
-              icon={Layers}
-            />
+            <section className="welcome-screen">
+              <div className="welcome-copy">
+                <div className="welcome-kicker"><span className="welcome-spark"><Sparkles size={14}/></span> CLEARTRADE · TRADE REVIEW</div>
+                <h1>Make your next shipment<br/><em>ready to move.</em></h1>
+                <p>Bring your trade documents together. ClearTrade checks them against the letter of credit, flags issues, and lays out the next step.</p>
+                <div className="welcome-trust"><span><CheckCircle2 size={15}/> Document checks</span><span><CheckCircle2 size={15}/> Clear next steps</span></div>
+              </div>
+              <div className="welcome-start-card">
+                <div className="welcome-card-heading"><div><span className="step-label">START HERE</span><h2>Try a deal</h2></div><span className="welcome-card-number">01</span></div>
+                <p>Pick a sample and see the full review flow, including what happens when something needs attention.</p>
+                <DemoScenarioLoader tenantId="demo-tenant" onScenarioLoaded={handleScenarioLoaded}/>
+                <div className="welcome-divider"><span>or use your own documents</span></div>
+                <button className="welcome-upload" onClick={async () => { try { await createDeal.mutateAsync(); setIsUploadModalOpen(true); } catch { /* The mutation displays its own toast. */ } }} disabled={createDeal.isPending}><FileUp size={16}/> Create a deal and upload documents <ArrowRight size={15}/></button>
+              </div>
+              <div className="welcome-bottom"><span>Built for cross-border trade teams</span><span>China <i/> Bangladesh <i/> Beyond</span></div>
+            </section>
           ) : dealQuery.isLoading ? (
             <LoadingSkeleton rows={4} />
           ) : dealQuery.isError ? (
@@ -526,13 +631,14 @@ export default function App() {
                     openStream(selected);
                   }}
                   onNavigateTab={(t) => setTab(t as TabId)}
+                  currentTab={tab}
                 />
               )}
 
               {runError && (
                 <div style={{ marginBottom: 14 }}>
                   <ErrorState
-                    title="Pipeline Interruption"
+                    title="The review stopped"
                     message={runError}
                     onRetry={() => runDeal.mutate(selected)}
                   />
@@ -553,8 +659,9 @@ export default function App() {
                   {tab === "findings" && (
                     <Findings
                       state={state}
-                      onUploadCorrectedDoc={async (file, kind) => {
-                        await api.uploadDocument(selected, file, kind);
+                      onRunReview={() => selected && runDeal.mutate(selected)}
+                      onUploadCorrectedDoc={async (file) => {
+                        await api.uploadDocument(selected, file, "commercial_invoice");
                         await api.resume(selected, {
                           action: "corrected_document",
                           note: `Corrected document attached via Findings panel: ${file.name}`,
@@ -563,9 +670,9 @@ export default function App() {
                       }}
                     />
                   )}
-                  {tab === "fx" && <Fx state={state} />}
-                  {tab === "cash" && <CashFlow state={state} />}
-                  {tab === "documents" && <Documents state={state} />}
+                  {tab === "fx" && <Fx state={state} onRunReview={() => selected && runDeal.mutate(selected)} onAddDocuments={() => setIsUploadModalOpen(true)} />}
+                  {tab === "cash" && <CashFlow state={state} onRunReview={() => selected && runDeal.mutate(selected)} onAddDocuments={() => setIsUploadModalOpen(true)} />}
+                  {tab === "documents" && <Documents state={state} onAddDocuments={() => setIsUploadModalOpen(true)} />}
                   {tab === "audit" && <Audit audit={auditQuery.data} state={state} />}
                 </>
               )}
@@ -579,8 +686,21 @@ export default function App() {
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
         onUpload={handleUploadDocument}
-        isUploading={false}
+        onRemoveDocument={async (docId) => {
+          if (selected) await removeDocument.mutateAsync({ dealId: selected, docId });
+        }}
+        removingDocId={removeDocument.isPending ? removeDocument.variables?.docId ?? null : null}
+        isUploading={uploading}
+        state={state}
+        isRunning={streaming || running}
+        isChecking={readinessCheck.isPending}
+        onCheckReadiness={async () => {
+          if (!selected || !state?.documents.length || streaming || running) return;
+          await readinessCheck.mutateAsync(selected);
+        }}
       />
+      <Copilot key={selected ?? "no-deal"} state={state} open={copilotOpen} onClose={() => setCopilotOpen(false)} dealId={selected} onDocumentUploaded={() => selected && void queryClient.invalidateQueries({ queryKey: ["deal", selected] })} onNavigate={setTab} />
+      {confirmDialog}
     </div>
   );
 }

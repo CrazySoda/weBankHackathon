@@ -14,38 +14,38 @@ export interface StageConfig {
 export const PIPELINE_STAGES: StageConfig[] = [
   {
     id: "stage-ingestion",
-    title: "1. Intake & Security",
+    title: "Documents",
     nodes: [
       {
         id: "intake",
-        label: "Intake",
-        description: "Validates tenant binding and document content hashes",
+        label: "Add documents",
+        description: "Checks your files before review",
       },
       {
         id: "extract_doc",
-        label: "Document Extraction",
-        description: "Extracts fields and confidence from untrusted PDF text",
+        label: "Read details",
+        description: "Finds key details in each document",
       },
       {
         id: "injection_screen",
-        label: "Injection Screen",
-        description: "Screens for white text and instruction phrases",
+        label: "Check document safety",
+        description: "Looks for suspicious content",
       },
     ],
   },
   {
     id: "stage-analysis",
-    title: "2. Analysis Engine",
+    title: "Trade checks",
     nodes: [
       {
         id: "plan",
-        label: "Planning",
-        description: "Selects domain skills under strict allowlists",
+        label: "Choose checks",
+        description: "Selects the checks needed for this deal",
       },
       {
         id: "compliance",
-        label: "Compliance & UCP 600",
-        description: "Checks consistency, sanctions, and CN VAT export refund",
+        label: "Check trade terms",
+        description: "Compares the documents and key trade details",
       },
       {
         id: "fx",
@@ -55,73 +55,73 @@ export const PIPELINE_STAGES: StageConfig[] = [
       {
         id: "cashflow",
         label: "Cash Flow",
-        description: "Computes 91-day integer balance series and gap analysis",
+        description: "Projects daily balances from day 0 through day 90",
       },
     ],
   },
   {
     id: "stage-verification",
-    title: "3. Verification",
+    title: "Money & timing",
     nodes: [
       {
         id: "verify",
-        label: "Verification",
-        description: "Recomputes findings against source documents",
+        label: "Verify the details",
+        description: "Checks each issue against the source documents",
       },
       {
         id: "credit_offer",
-        label: "Financing Offer",
-        description: "Calculates invoice discounting cost and net advance",
+        label: "Review financing",
+        description: "Estimates available financing and its cost",
       },
       {
         id: "resolve_exception",
-        label: "Exception Resolver",
-        description: "Drafts amendment for fixable discrepancies",
+        label: "Prepare a suggested fix",
+        description: "Drafts a suggested change for correctable issues",
         isBranch: true,
       },
       {
         id: "await_corrected_doc",
-        label: "Await Corrected Doc",
-        description: "Pauses for corrected document upload",
+        label: "Waiting for your update",
+        description: "Pauses until you add an updated document",
         isBranch: true,
       },
     ],
   },
   {
     id: "stage-policy",
-    title: "4. Policy & Human Gate",
+    title: "Your decision",
     nodes: [
       {
         id: "policy_check",
-        label: "Cedar Policy",
-        description: "Validates caps, payee match, and block clearance",
+        label: "Check approval details",
+        description: "Checks the amount, recipient, and open issues",
       },
       {
         id: "human_approval",
-        label: "Human Approval",
-        description: "Verifies Ed25519 signature over canonical deal hash",
+        label: "Your approval",
+        description: "Waits for you to approve or decline",
       },
       {
         id: "escalate",
-        label: "Escalation",
-        description: "Terminal stop on fatal errors or unfixable discrepancies",
+        label: "Needs a closer look",
+        description: "Pauses when an issue needs human attention",
         isBranch: true,
       },
     ],
   },
   {
     id: "stage-settlement",
-    title: "5. Settlement & Audit",
+    title: "Complete",
     nodes: [
       {
         id: "execute",
-        label: "Sandbox Payout",
-        description: "Executes idempotent sandbox payout with nonce lock",
+        label: "Test payment",
+        description: "Completes the sample payment",
       },
       {
         id: "report",
-        label: "Audit Anchoring",
-        description: "Anchors SHA-256 hash chain and outputs receipt",
+        label: "Save your receipt",
+        description: "Creates a receipt and saves the review record",
       },
     ],
   },

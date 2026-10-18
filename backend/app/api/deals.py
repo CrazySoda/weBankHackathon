@@ -21,10 +21,13 @@ from app.audit.events import GENESIS, AuditEvent, AuditSink
 from app.config import Settings
 from app.db.persistence import DealStore, PostgresAuditChain
 from app.graph.build import build_graph
-from app.graph.nodes.extract_doc import ALLOWED_KINDS as ALLOWED_DOC_KINDS
+from app.graph.nodes.extract_doc import (
+    ALLOWED_KINDS as ALLOWED_DOC_KINDS,
+    extract_doc as extract_doc_node,
+)
 from app.graph.state import DealState, DocRef, new_id
 from app.harness.budget import DealBudget
-from app.harness.hooks import NodeContext
+from app.harness.hooks import NodeContext, wrap_with_hooks
 from app.harness.llm import LLMClient
 from app.security.approval import ApprovalVerifier
 from app.security.storage import DocumentStore
@@ -264,6 +267,48 @@ class DealRunner:
         )
         return ref
 
+    def remove_document(self, deal_id: str, doc_id: str) -> DocRef:
+        rec = self._require(deal_id)
+        if rec.running:
+            raise RuntimeError("deal already running")
+        if any(
+            (
+                rec.state.check_plan,
+                rec.state.findings,
+                rec.state.fx_options,
+                rec.state.cash_projection,
+                rec.state.finance_offer,
+                rec.state.policy,
+                rec.state.approval,
+                rec.state.receipt,
+                rec.state.report_summary,
+                rec.state.fatal_error,
+                rec.state.escalation_reason,
+                rec.state.pending_doc,
+            )
+        ):
+            raise RuntimeError("documents cannot be removed after review has started")
+        ref = next((doc for doc in rec.state.documents if doc.doc_id == doc_id), None)
+        if ref is None:
+            raise KeyError(doc_id)
+        rec.state = rec.state.model_copy(
+            update={
+                "documents": [doc for doc in rec.state.documents if doc.doc_id != doc_id],
+                "extracted": [item for item in rec.state.extracted if item.doc_id != doc_id],
+                "injection_flags": [flag for flag in rec.state.injection_flags if flag.doc_id != doc_id],
+            }
+        )
+        self._persist(deal_id)
+        self.audit.emit(
+            AuditEvent(
+                kind="document_removed",
+                deal_id=deal_id,
+                tenant_id=rec.state.tenant_id,
+                payload={"doc_id": ref.doc_id, "sha256": ref.sha256},
+            )
+        )
+        return ref
+
     # -- run / resume ------------------------------------------------------
 
     def _checkpointer(self, deal_id: str) -> Any:
@@ -314,6 +359,44 @@ class DealRunner:
             rec.queue.put_nowait({"type": "done", "state": rec.state.model_dump()})
         except Exception as e:
             rec.queue.put_nowait({"type": "error", "detail": type(e).__name__})
+        finally:
+            rec.running = False
+            self._persist(deal_id)
+
+    async def check_document_readiness(self, deal_id: str) -> DealRecord:
+        """Extract uploaded docs only, without starting the full deal graph."""
+        rec = self._require(deal_id)
+        if rec.running:
+            raise RuntimeError("deal already running")
+        rec.running = True
+        extract = wrap_with_hooks("extract_doc", extract_doc_node, self._graph_ctx(deal_id))
+        try:
+            for doc in rec.state.documents:
+                existing = next(
+                    (
+                        item
+                        for item in rec.state.extracted
+                        if item.doc_id == doc.doc_id and item.sha256 == doc.sha256
+                    ),
+                    None,
+                )
+                if existing is not None:
+                    continue
+                extraction_state = rec.state.model_copy(update={"pending_doc": doc})
+                update = await extract(extraction_state)
+                if update.get("fatal_error"):
+                    raise RuntimeError("document extraction failed")
+                new_docs = update.get("extracted", [])
+                extracted = [item for item in rec.state.extracted if item.doc_id != doc.doc_id]
+                extracted.extend(new_docs)
+                rec.state = rec.state.model_copy(
+                    update={
+                        "extracted": extracted,
+                        "served_by": [*rec.state.served_by, *update.get("served_by", [])],
+                        "pending_doc": None,
+                    }
+                )
+            return rec
         finally:
             rec.running = False
             self._persist(deal_id)

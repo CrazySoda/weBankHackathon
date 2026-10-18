@@ -28,6 +28,7 @@ def render():
         "deal_id": "d1",
         "findings": [{"rule_id": "r1", "severity": "info"}],
         "payee": "Shenzhen Sunny Goods Co",
+        "applicant": "Dhaka Trading House",
         "amount_minor": 10_000_000,
     }
 
@@ -91,6 +92,12 @@ class TestModifiedAfterSign:
     def test_changed_payee_invalidates(self, keys, render, verifier):
         approval = mk_approval(keys, render)
         tampered = render | {"payee": "Attacker Ltd"}
+        with pytest.raises(ApprovalError, match="changed after signing"):
+            verifier.verify(approval, tampered)
+
+    def test_changed_applicant_invalidates(self, keys, render, verifier):
+        approval = mk_approval(keys, render)
+        tampered = render | {"applicant": "Different Buyer Ltd"}
         with pytest.raises(ApprovalError, match="changed after signing"):
             verifier.verify(approval, tampered)
 

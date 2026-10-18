@@ -51,6 +51,8 @@ NODE_TOOL_ALLOWLIST: dict[str, frozenset[str]] = {
     "human_approval": frozenset(),
     "escalate": frozenset(),
     "report": frozenset(),
+    # read-only deal Q&A in the review console; never holds a tool
+    "copilot": frozenset(),
 }
 
 # default location of the skill library (backend/skills)

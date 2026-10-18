@@ -1,0 +1,15 @@
+# Use with docker-compose.yml for Vite hot reload against the Docker backend.
+services:
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./web:/app
+      - web_node_modules:/app/node_modules
+    environment:
+      VITE_API_TARGET: http://backend:8000
+      VITE_USE_POLLING: "true"
+
+volumes:
+  web_node_modules:

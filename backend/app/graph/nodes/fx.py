@@ -79,6 +79,7 @@ def fx(state: DealState, ctx: NodeContext) -> dict[str, Any]:
             effective_rate_scaled=r.effective_rate_scaled,
             spread_bp=r.quote.spread_bp,
             fee_minor=r.quote.fee.minor,
+            fee_currency=r.quote.fee.currency,
         )
         for r in ranked
     ]

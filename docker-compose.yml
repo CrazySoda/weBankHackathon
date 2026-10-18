@@ -59,7 +59,7 @@ services:
       - "127.0.0.1:4000:4000"
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set in .env}
-      LITELLM_DB_URL: ${LITELLM_DB_URL:-sqlite:///tmp/litellm.db}
+      LITELLM_DB_URL: ${LITELLM_DB_URL:-sqlite:////data/litellm.db}
       LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
       LLM_REASONER_MODEL: ${LLM_REASONER_MODEL:-}
       LLM_FAST_MODEL: ${LLM_FAST_MODEL:-}
@@ -76,6 +76,7 @@ services:
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
     volumes:
       - ./backend/app/harness/litellm_render.py:/render/litellm_render.py:ro
+      - litellm_data:/data
     # Admin UI not exposed; only the API port above, localhost-only.
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:4000/health/liveliness', timeout=5)"]
@@ -138,3 +139,4 @@ services:
 volumes:
   pgdata:
   uploads:
+  litellm_data:

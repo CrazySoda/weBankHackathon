@@ -1,16 +1,15 @@
-import { useState } from "react";
 import type { DealState, ExtractedField } from "../api";
-import { formatMoney, shortHash } from "../api";
+import { formatMoney } from "../api";
+import { majorAmountToMinor } from "./Overview";
 import { SyntheticChip, confidenceColor } from "../ui";
 import {
   FileText,
   FileSpreadsheet,
   FileCheck,
   FileQuestion,
-  Copy,
-  Check,
   AlertTriangle,
-  Info,
+  UploadCloud,
+  ArrowRight,
 } from "lucide-react";
 
 const KIND_META: Record<string, { label: string; icon: typeof FileText }> = {
@@ -18,10 +17,11 @@ const KIND_META: Record<string, { label: string; icon: typeof FileText }> = {
   commercial_invoice: { label: "Commercial Invoice", icon: FileText },
   packing_list: { label: "Packing List", icon: FileSpreadsheet },
   bill_of_lading: { label: "Bill of Lading", icon: FileText },
+  presentation_schedule: { label: "Presentation Schedule", icon: FileCheck },
   unknown: { label: "Unknown document", icon: FileQuestion },
 };
 
-export default function Documents({ state }: { state: DealState }) {
+export default function Documents({ state, onAddDocuments }: { state: DealState; onAddDocuments?: () => void }) {
   const extracted = state.extracted;
   const unextracted = state.documents.filter(
     (d) => !extracted.some((e) => e.doc_id === d.doc_id),
@@ -29,12 +29,26 @@ export default function Documents({ state }: { state: DealState }) {
 
   if (state.documents.length === 0) {
     return (
-      <div className="empty" style={{ padding: 32, textAlign: "center" }}>
-        <FileQuestion size={32} style={{ margin: "0 auto 12px", opacity: 0.4 }} />
-        <p>No documents uploaded yet.</p>
-        <p className="faint" style={{ fontSize: 13 }}>
-          Use the sidebar or a demo scenario to load an LC, invoice, or packing list.
-        </p>
+      <div className="empty-state-panel documents-empty-state">
+        <div className="empty-state-content">
+          <div className="empty-state-icon"><UploadCloud size={25} strokeWidth={1.8} /></div>
+          <span className="empty-state-kicker">Documents</span>
+          <h2 className="empty-state-title">Bring your trade paperwork together</h2>
+          <p className="empty-state-copy">
+            Add the files for this deal. We’ll organize the key details so they’re easy to review.
+          </p>
+          {onAddDocuments && (
+            <button className="empty-state-button" onClick={onAddDocuments}>
+              Add documents <ArrowRight size={16} />
+            </button>
+          )}
+          <div className="empty-state-footnote">PDF, PNG, and JPG files are supported</div>
+        </div>
+        <div className="empty-doc-checklist" aria-label="Suggested documents">
+          <span><FileCheck size={15} /> Letter of credit</span>
+          <span><FileText size={15} /> Commercial invoice</span>
+          <span><FileSpreadsheet size={15} /> Packing list</span>
+        </div>
       </div>
     );
   }
@@ -61,10 +75,6 @@ export default function Documents({ state }: { state: DealState }) {
                   <span>low confidence</span>
                 </span>
               )}
-              <DocHashCopy hash={doc.sha256} />
-              <span className="chip" style={{ background: "rgba(255,255,255,0.04)", fontSize: 11 }}>
-                {doc.extraction_model}
-              </span>
               <SyntheticChip />
             </div>
 
@@ -75,15 +85,15 @@ export default function Documents({ state }: { state: DealState }) {
                 <table className="fields-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--border-subtle, #334155)", textAlign: "left", color: "#94a3b8" }}>
-                      <th style={{ padding: "8px 10px", width: "24%" }}>Field</th>
-                      <th style={{ padding: "8px 10px", width: "28%" }}>Extracted Value</th>
-                      <th style={{ padding: "8px 10px", width: "20%" }}>Confidence</th>
-                      <th style={{ padding: "8px 10px", width: "28%" }}>Text Provenance</th>
+                      <th style={{ padding: "8px 10px", width: "24%" }}>Detail</th>
+                      <th style={{ padding: "8px 10px", width: "28%" }}>Information found</th>
+                      <th style={{ padding: "8px 10px", width: "20%" }}>How sure</th>
+                      <th style={{ padding: "8px 10px", width: "28%" }}>Source text</th>
                     </tr>
                   </thead>
                   <tbody>
                     {doc.fields.map((f, i) => (
-                      <FieldRow key={i} field={f} />
+                      <FieldRow key={i} field={f} currency={String(doc.fields.find((candidate) => candidate.name === "currency")?.value ?? "USD")} />
                     ))}
                   </tbody>
                 </table>
@@ -106,13 +116,10 @@ export default function Documents({ state }: { state: DealState }) {
                 <span>{meta.label}</span>
               </span>
               <span className="chip chip-status-open">not extracted</span>
-              <DocHashCopy hash={d.sha256} />
-              <span className="faint mono" style={{ fontSize: 11 }}>
-                {formatFileSize(d.size_bytes)} · {d.mime}
-              </span>
+              <span className="faint" style={{ fontSize: 11 }}>{formatFileSize(d.size_bytes)}</span>
             </div>
             <div className="faint" style={{ fontSize: 12 }}>
-              Extraction runs automatically as part of the LangGraph deal pipeline — press “Run deal”.
+              We’ll read this document when you choose “Review deal”.
             </div>
           </div>
         );
@@ -125,45 +132,15 @@ function filenameFor(state: DealState, docId: string): string {
   return state.documents.find((d) => d.doc_id === docId)?.filename ?? docId;
 }
 
-function DocHashCopy({ hash }: { hash: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      className="btn-link mono faint"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 4,
-        background: "rgba(168, 85, 247, 0.08)",
-        color: "var(--accent-violet, #a855f7)",
-        border: "1px solid rgba(168, 85, 247, 0.2)",
-        borderRadius: 4,
-        padding: "2px 6px",
-        fontSize: 11,
-        cursor: "pointer",
-      }}
-      onClick={() => {
-        void navigator.clipboard.writeText(hash);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      }}
-      title={`SHA-256: ${hash} (click to copy)`}
-    >
-      <span>sha256:{shortHash(hash, 10)}</span>
-      {copied ? <Check size={11} color="var(--status-pass, #10b981)" /> : <Copy size={11} />}
-    </button>
-  );
-}
-
-function FieldRow({ field }: { field: ExtractedField }) {
+function FieldRow({ field, currency }: { field: ExtractedField; currency: string }) {
   const pct = Math.round(field.confidence * 100);
   const color = confidenceColor(field.confidence);
-  const value = formatFieldValue(field);
+  const value = formatFieldValue(field, currency);
 
   return (
     <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
       <td style={{ padding: "8px 10px", fontWeight: 500, color: "#e2e8f0" }}>
-        <code>{field.name}</code>
+        {humanizeFieldName(field.name)}
       </td>
       <td style={{ padding: "8px 10px", color: "var(--text-main, #f8fafc)" }}>
         {value}
@@ -237,16 +214,16 @@ function FieldRow({ field }: { field: ExtractedField }) {
   );
 }
 
-function formatFieldValue(field: ExtractedField): string {
+function formatFieldValue(field: ExtractedField, currency: string): string {
   const v = field.value;
   if (v === null || v === undefined) return "—";
-  if (typeof v === "number") {
-    // minor-unit money fields get currency formatting without float division
-    if (/(minor|_usd|amount|total|price|balance)/.test(field.name)) {
-      return formatMoney(v, field.name.includes("usd") ? "USD" : "USD");
-    }
-    return String(v);
+  if (/(amount|total|price|balance)/i.test(field.name)) {
+    const minor = /_minor$/.test(field.name)
+      ? typeof v === "number" ? v : /^-?\d+$/.test(String(v)) ? Number(v) : null
+      : majorAmountToMinor(v);
+    if (minor !== null && Number.isSafeInteger(minor)) return formatMoney(minor, currency);
   }
+  if (typeof v === "number") return String(v);
   if (typeof v === "object") return JSON.stringify(v);
   return String(v);
 }
@@ -255,4 +232,14 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const kb = Math.round(bytes / 1024);
   return `${kb} KB`;
+}
+
+function humanizeFieldName(name: string): string {
+  const labels: Record<string, string> = {
+    beneficiary: "Seller", applicant: "Buyer", buyer: "Buyer", seller: "Seller",
+    total_amount_minor: "Total amount", amount_minor: "Amount", currency: "Currency",
+    goods_description: "Goods", description_of_goods: "Goods", shipment_date: "Shipment date",
+    latest_shipment_date: "Latest ship date", expiry_date: "Expiry date", lc_number: "Letter of credit number",
+  };
+  return labels[name] ?? name.replace(/_minor$/, "").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }

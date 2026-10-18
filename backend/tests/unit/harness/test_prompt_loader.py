@@ -25,6 +25,7 @@ NODES = [
     "execute",
     "escalate",
     "report",
+    "copilot",
 ]
 
 UNTRUSTED_SENTENCE = (

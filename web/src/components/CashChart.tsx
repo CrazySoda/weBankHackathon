@@ -3,7 +3,7 @@ import type { CashProjectionState } from "../api";
 import { formatMoney } from "../api";
 
 /**
- * Hand-rolled SVG line chart of the daily cash balance (91 days).
+ * Hand-rolled SVG line chart of daily cash balances from day 0 through day 90.
  *
  * COMPLIANCE NOTE:
  * Coordinate scaling math is strictly isolated inside `computeChartCoordinates`.
@@ -122,7 +122,7 @@ export default function CashChart({ projection }: { projection: CashProjectionSt
         onMouseMove={onMove}
         onMouseLeave={() => setHover(null)}
         role="img"
-        aria-label={`Daily cash balance over ${data.length} days; minimum ${formatMoney(
+        aria-label={`Daily cash balance over ${Math.max(0, data.length - 1)} days; minimum ${formatMoney(
           projection.min_balance_minor,
           projection.currency,
         )} on day ${projection.min_balance_day}`}

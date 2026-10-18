@@ -56,7 +56,7 @@ export function SeverityChip({ severity }: { severity: Severity }) {
   return (
     <span className={`chip chip-sev-${severity}`}>
       <Icon size={13} aria-hidden="true" />
-      <span>{severity}</span>
+      <span>{severity === "block" ? "Must fix" : severity === "warn" ? "Review" : "Note"}</span>
     </span>
   );
 }
@@ -66,7 +66,7 @@ export function StatusChip({ status }: { status: FindingStatus }) {
   return (
     <span className={`chip chip-status-${status}`}>
       <Icon size={12} aria-hidden="true" />
-      <span>{status}</span>
+      <span>{status === "open" ? "Open" : status === "fixed" ? "Fixed" : "Accepted"}</span>
     </span>
   );
 }
@@ -75,7 +75,7 @@ export function SyntheticChip() {
   return (
     <span className="chip chip-synthetic" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
       <FlaskConical size={11} aria-hidden="true" />
-      <span>SYNTHETIC DATA</span>
+      <span>SAMPLE DATA</span>
     </span>
   );
 }
@@ -90,7 +90,7 @@ export function DecisionChip({ decision }: { decision: string }) {
   return (
     <span className={`chip chip-decision-${decision}`}>
       <Icon size={13} aria-hidden="true" />
-      <span>{decision}</span>
+      <span>{decision === "allow" ? "Ready" : decision === "deny" ? "Not approved" : "Needs review"}</span>
     </span>
   );
 }

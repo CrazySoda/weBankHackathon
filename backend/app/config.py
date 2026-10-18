@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     budget_max_steps: int = 64
     budget_max_tokens_per_deal: int = 400_000
     budget_max_cost_minor_per_deal: int = 500_00  # USD minor units ($500) hard ceiling
+    # deal copilot (read-only Q&A): separate from the pipeline budget so chatting
+    # can never trip a deal's kill switch; capped per deal instead
+    copilot_max_turns_per_deal: int = 60
+    copilot_max_tokens_per_deal: int = 120_000
 
     # --- Payout ---
     payout_mode: Literal["sandbox"] = "sandbox"

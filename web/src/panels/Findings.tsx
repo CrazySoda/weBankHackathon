@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { Finding, DealState } from "../api";
-import { formatMoney } from "../api";
 import { SeverityChip, StatusChip } from "../ui";
 import { getRuleExplanation } from "../config/ruleExplanations";
 import {
@@ -10,21 +9,24 @@ import {
   UploadCloud,
   HelpCircle,
   FileCheck,
-  Coins,
   ChevronRight,
   Split,
+  SearchCheck,
+  ArrowRight,
 } from "lucide-react";
 
 interface FindingsProps {
   state: DealState;
   onUploadCorrectedDoc?: (file: File) => void;
   uploadingDoc?: boolean;
+  onRunReview?: () => void;
 }
 
 export default function Findings({
   state,
   onUploadCorrectedDoc,
   uploadingDoc = false,
+  onRunReview,
 }: FindingsProps) {
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
   const [copiedDraft, setCopiedDraft] = useState(false);
@@ -39,10 +41,32 @@ export default function Findings({
     setTimeout(() => setCopiedDraft(false), 2000);
   };
 
-  if (state.findings.length === 0 && !state.vat_refund_minor) {
+  if (state.findings.length === 0) {
     return (
-      <div className="card empty">
-        No findings recorded{state.check_plan ? "" : " — run the deal to execute UCP 600 compliance checks"}.
+      <div className={`empty-state-panel ${state.check_plan ? "empty-state-success" : ""}`}>
+        <div className="empty-state-content">
+          <div className="empty-state-icon"><SearchCheck size={25} strokeWidth={1.8} /></div>
+          <span className="empty-state-kicker">{state.check_plan ? "Review complete" : "Your next step"}</span>
+          <h2 className="empty-state-title">
+            {state.check_plan ? "Everything looks clear" : "Check your documents for issues"}
+          </h2>
+          <p className="empty-state-copy">
+            {state.check_plan
+              ? "We didn’t find anything that needs your attention. You can review your documents or come back here after an update."
+              : "Run a review to check the details in your trade documents and see anything that may need attention."}
+          </p>
+          {!state.check_plan && onRunReview && (
+            <button className="empty-state-button" onClick={onRunReview}>
+              Review this deal <ArrowRight size={16} />
+            </button>
+          )}
+          <div className="empty-state-footnote">
+            {state.check_plan ? "Your documents were checked against the deal details." : "Usually takes less than a minute"}
+          </div>
+        </div>
+        <div className="empty-state-art" aria-hidden="true">
+          <span /><span /><span />
+        </div>
       </div>
     );
   }
@@ -50,28 +74,6 @@ export default function Findings({
   return (
     <div className="findings-layout">
       <div className="findings-main-column">
-        {/* VAT Export Tax Rebate Card */}
-        {state.vat_refund_minor !== null && state.vat_refund_minor !== undefined && (
-          <div className="card" style={{ borderColor: "var(--accent-cyan, #06b6d4)", marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <Coins size={20} color="var(--accent-cyan, #06b6d4)" />
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
-                    Estimated Chinese Export Tax Rebate (VAT Refund)
-                  </h3>
-                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-dim, #94a3b8)" }}>
-                    Receivable from State Taxation Administration upon customs filing verification
-                  </p>
-                </div>
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "var(--mono)", color: "var(--accent-cyan, #06b6d4)" }}>
-                {formatMoney(state.vat_refund_minor, "CNY")}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Amendment Draft Banner if await_corrected_doc is active */}
         {state.amendment_draft && (
           <div
@@ -85,10 +87,10 @@ export default function Findings({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: 14, color: "var(--status-warn, #f59e0b)" }}>
-                  Amendment Draft Prepared (UCP 600 Fixable Discrepancy)
+                  Suggested change prepared
                 </h3>
                 <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-dim, #94a3b8)" }}>
-                  Copy this draft to request buyer amendment or upload a corrected invoice below
+                  Share this draft with your buyer, or add an updated invoice below.
                 </p>
               </div>
               <button
@@ -104,7 +106,7 @@ export default function Findings({
                 }}
               >
                 {copiedDraft ? <Check size={12} color="var(--status-pass)" /> : <Copy size={12} />}
-                <span>{copiedDraft ? "Copied" : "Copy Draft"}</span>
+                  <span>{copiedDraft ? "Copied" : "Copy suggestion"}</span>
               </button>
             </div>
             <pre
@@ -156,7 +158,7 @@ export default function Findings({
                   }}
                 >
                   <UploadCloud size={16} />
-                  <span>{uploadingDoc ? "Uploading corrected document..." : "Upload Corrected Commercial Invoice to Clear Block"}</span>
+                  <span>{uploadingDoc ? "Adding updated invoice…" : "Add an updated invoice"}</span>
                 </label>
               </div>
             )}
@@ -167,13 +169,12 @@ export default function Findings({
         {blocks.length > 0 && (
           <div className="severity-group">
             <h3 className="severity-title" style={{ color: "var(--status-block, #f43f5e)" }}>
-              Block Findings ({blocks.length}) — Action Required Before Payout
+              Needs to be fixed ({blocks.length})
             </h3>
             {blocks.map((f) => (
               <FindingCard
                 key={`${f.check_id}:${f.rule_id}`}
                 finding={f}
-                state={state}
                 isSelected={selectedFinding?.rule_id === f.rule_id}
                 onSelect={() => setSelectedFinding(f)}
               />
@@ -184,13 +185,12 @@ export default function Findings({
         {warns.length > 0 && (
           <div className="severity-group">
             <h3 className="severity-title" style={{ color: "var(--status-warn, #f59e0b)" }}>
-              Warnings ({warns.length}) — Review Recommended
+              Worth a review ({warns.length})
             </h3>
             {warns.map((f) => (
               <FindingCard
                 key={`${f.check_id}:${f.rule_id}`}
                 finding={f}
-                state={state}
                 isSelected={selectedFinding?.rule_id === f.rule_id}
                 onSelect={() => setSelectedFinding(f)}
               />
@@ -201,13 +201,12 @@ export default function Findings({
         {infos.length > 0 && (
           <div className="severity-group">
             <h3 className="severity-title" style={{ color: "var(--status-info, #94a3b8)" }}>
-              Informational Notes ({infos.length})
+              Other notes ({infos.length})
             </h3>
             {infos.map((f) => (
               <FindingCard
                 key={`${f.check_id}:${f.rule_id}`}
                 finding={f}
-                state={state}
                 isSelected={selectedFinding?.rule_id === f.rule_id}
                 onSelect={() => setSelectedFinding(f)}
               />
@@ -223,7 +222,7 @@ export default function Findings({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Split size={16} color="var(--border-focus, #06b6d4)" />
-                <h3 style={{ margin: 0, fontSize: 14 }}>Source Document Evidence</h3>
+                <h3 style={{ margin: 0, fontSize: 14 }}>Why this was flagged</h3>
               </div>
               <button
                 onClick={() => setSelectedFinding(null)}
@@ -297,12 +296,10 @@ export default function Findings({
 
 function FindingCard({
   finding,
-  state,
   isSelected,
   onSelect,
 }: {
   finding: Finding;
-  state: DealState;
   isSelected: boolean;
   onSelect: () => void;
 }) {
@@ -334,7 +331,6 @@ function FindingCard({
         )}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
           <span className="faint mono" style={{ fontSize: 11 }}>
-            {finding.check_id}
           </span>
           <ChevronRight size={14} color="var(--text-faint, #64748b)" />
         </div>
@@ -377,7 +373,7 @@ function FindingCard({
       {finding.evidence.length > 0 && (
         <div style={{ marginTop: 8, fontSize: 11, color: "var(--border-focus, #06b6d4)", display: "flex", alignItems: "center", gap: 4 }}>
           <FileCheck size={12} />
-          <span>Click to inspect {finding.evidence.length} source document evidence quote(s)</span>
+          <span>View the supporting document details</span>
         </div>
       )}
     </div>

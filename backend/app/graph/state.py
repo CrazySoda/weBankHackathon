@@ -238,6 +238,7 @@ class FxOption(BaseModel):
     effective_rate_scaled: int
     spread_bp: int
     fee_minor: int
+    fee_currency: str | None = None
 
 
 class CashEventState(BaseModel):

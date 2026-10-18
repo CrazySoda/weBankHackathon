@@ -1,7 +1,8 @@
 import type { DealState } from "../api";
 import { formatMoney } from "../api";
 import { SyntheticChip } from "../ui";
-import { TrendingUp, ArrowLeftRight, CheckCircle2, ShieldCheck, Zap } from "lucide-react";
+import { TrendingUp, ArrowLeftRight, CheckCircle2, Zap } from "lucide-react";
+import GuidedEmptyState from "../components/GuidedEmptyState";
 
 function formatRate(scaled: number): string {
   const s = BigInt(scaled).toString().padStart(7, "0");
@@ -11,43 +12,82 @@ function formatRate(scaled: number): string {
 }
 
 const ROUTE_LABELS: Record<string, { label: string; desc: string; icon: React.ElementType }> = {
-  "route-offshore-cips": {
-    label: "Offshore RMB Net Settlement (CIPS)",
-    desc: "Direct cross-border clearing via CIPS corridor. Minimal intermediary spread.",
+  "wire-usd-hk": {
+    label: "Hong Kong bank wire",
+    desc: "A synthetic USD to CNY bank wire quote through Hong Kong.",
     icon: Zap,
   },
-  "route-standard-wire": {
-    label: "Standard Commercial Bank TT Wire",
-    desc: "Traditional correspondent banking routing. Standard SWIFT transfer fee applies.",
+  "cny-direct": {
+    label: "Direct CNY settlement",
+    desc: "A synthetic quote for settling directly in Chinese yuan.",
     icon: ArrowLeftRight,
   },
-  "route-trade-finance": {
-    label: "Discounted Trade Financing Settlement",
-    desc: "Upfront capital advance at agreed discount rate. Eliminates 90-day credit risk.",
+  "forward-lock": {
+    label: "Forward rate lock",
+    desc: "A synthetic quote that locks an exchange rate for settlement.",
     icon: TrendingUp,
   },
 };
 
-export default function Fx({ state }: { state: DealState }) {
+export default function Fx({ state, onRunReview, onAddDocuments }: { state: DealState; onRunReview?: () => void; onAddDocuments?: () => void }) {
   if (state.fx_options.length === 0) {
-    return <div className="card empty">No FX quotes evaluated yet — run the deal to evaluate.</div>;
+    const hasDocuments = state.documents.length > 0;
+    const reviewed = Boolean(state.check_plan);
+    return <GuidedEmptyState
+      icon={ArrowLeftRight}
+      eyebrow="Payment options"
+      title={reviewed ? "No payment routes found" : hasDocuments ? "Compare your payment routes" : "Start with your trade documents"}
+      description={reviewed
+        ? "We couldn't calculate a route from the details found. Check the invoice amount and currencies, then try again."
+        : "See estimated proceeds, exchange rates, and fees side by side once your deal has been reviewed."}
+      actionLabel={reviewed ? "Check documents" : hasDocuments ? "Run deal review" : "Add documents"}
+      onAction={reviewed ? onAddDocuments : hasDocuments ? onRunReview : onAddDocuments}
+      steps={["Add your trade documents", "Review deal details", "Compare estimated payouts"]}
+      footnote="Routes shown here use sample market data."
+    />;
   }
 
   // Sort by net_minor descending (best first)
   const sorted = [...state.fx_options].sort((a, b) => b.net_minor - a.net_minor);
-  const bestRoute = sorted[0];
+  const proceedsByCurrency = sorted.reduce((groups, route) => {
+    const current = groups.get(route.buy_currency) ?? [];
+    current.push(route);
+    groups.set(route.buy_currency, current);
+    return groups;
+  }, new Map<string, typeof sorted>());
 
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 16 }}>FX Route Comparison & Settlement Optimization</h2>
+          <h2 style={{ margin: 0, fontSize: 16 }}>Payment route comparison</h2>
           <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--text-dim, #94a3b8)" }}>
-            Real-time ranked settlement routes comparing net proceeds and basis point spreads
+            Compare estimated proceeds, exchange rates, and fees for each option.
           </p>
         </div>
         <SyntheticChip />
       </div>
+
+      <section className="fx-proceeds-chart card" aria-label="Estimated proceeds comparison">
+        <div className="fx-proceeds-chart-head"><div><h3>Estimated payout by option</h3><p>Compare the amount you may receive after fees.</p></div><span>Higher is better</span></div>
+        {[...proceedsByCurrency.entries()].map(([currency, routes]) => {
+          const max = Math.max(...routes.map((route) => route.net_minor), 1);
+          return <div className="fx-proceeds-group" key={currency}>
+            {proceedsByCurrency.size > 1 && <div className="fx-proceeds-currency">Payout in {currency}</div>}
+            {routes.map((route) => {
+              const info = ROUTE_LABELS[route.route_id];
+              const isBest = route.route_id === sorted[0].route_id;
+              return <div className="fx-proceeds-row" key={route.route_id}>
+                <span className="fx-proceeds-label">{info?.label ?? route.provider}</span>
+                <div className="fx-proceeds-track" role="img" aria-label={`${info?.label ?? route.provider}: ${formatMoney(route.net_minor, currency)}`}>
+                  <span className={isBest ? "best" : ""} style={{ width: `${Math.max(2, (route.net_minor / max) * 100)}%` }}/>
+                </div>
+                <strong className={isBest ? "best" : ""}>{formatMoney(route.net_minor, currency)}</strong>
+              </div>;
+            })}
+          </div>;
+        })}
+      </section>
 
       {/* 3 Ranked Cards */}
       <div className="fx-cards-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14, marginBottom: 18 }}>
@@ -147,9 +187,9 @@ export default function Fx({ state }: { state: DealState }) {
                   </div>
                 </div>
                 <div>
-                  <span className="muted">Spread:</span>
+                  <span className="muted">Rate difference:</span>
                   <div className="mono tabular" style={{ fontWeight: 600 }}>
-                    {route.spread_bp} bps
+                    {(route.spread_bp / 100).toFixed(2)}%
                   </div>
                 </div>
               </div>
@@ -164,16 +204,16 @@ export default function Fx({ state }: { state: DealState }) {
 
       {/* Summary Table */}
       <div className="card">
-        <h3 style={{ margin: "0 0 10px", fontSize: 14 }}>Full Quote Audit Breakdown</h3>
+        <h3 style={{ margin: "0 0 10px", fontSize: 14 }}>Compare all payment options</h3>
         <table>
           <thead>
             <tr>
-              <th>Route ID</th>
+              <th>Option</th>
               <th>Provider</th>
-              <th>Currency Pair</th>
-              <th className="num">Gross Face Amount</th>
+              <th>Currencies</th>
+              <th className="num">Amount sent</th>
               <th className="num">Fee</th>
-              <th className="num">Spread (bps)</th>
+              <th className="num">Rate difference</th>
               <th className="num">Net Proceeds</th>
               <th className="num">Rate</th>
             </tr>
@@ -181,7 +221,7 @@ export default function Fx({ state }: { state: DealState }) {
           <tbody>
             {sorted.map((o, idx) => (
               <tr key={o.route_id} className={idx === 0 ? "best" : undefined}>
-                <td className="mono">{o.route_id}</td>
+                <td>{ROUTE_LABELS[o.route_id]?.label ?? "Payment option"}</td>
                 <td>
                   {o.provider}
                   {idx === 0 && <span className="best-tag">BEST</span>}
@@ -190,8 +230,8 @@ export default function Fx({ state }: { state: DealState }) {
                   {o.sell_currency}/{o.buy_currency}
                 </td>
                 <td className="num tabular">{formatMoney(o.amount_minor, o.sell_currency)}</td>
-                <td className="num tabular">{formatMoney(o.fee_minor, o.sell_currency)}</td>
-                <td className="num tabular">{o.spread_bp} bp</td>
+                <td className="num tabular">{formatMoney(o.fee_minor, o.fee_currency ?? o.buy_currency)}</td>
+                <td className="num tabular">{(o.spread_bp / 100).toFixed(2)}%</td>
                 <td className="num tabular" style={{ fontWeight: idx === 0 ? 700 : undefined }}>
                   {formatMoney(o.net_minor, o.buy_currency)}
                 </td>

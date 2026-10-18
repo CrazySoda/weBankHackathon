@@ -8,7 +8,6 @@ import {
   ChevronDown,
   ChevronUp,
   WifiOff,
-  Sparkles,
 } from "lucide-react";
 import type { StreamEvent } from "../api";
 import { PIPELINE_STAGES } from "../config/pipelineStages";
@@ -23,7 +22,7 @@ export type NodeStatus = "idle" | "active" | "done" | "interrupted" | "failed";
 
 export default function PipelineVisualizer({
   events,
-  running,
+  running: _running,
   reconnecting = false,
 }: PipelineVisualizerProps) {
   // Default to clean collapsed view for beginner-friendly uncluttered layout
@@ -82,7 +81,6 @@ export default function PipelineVisualizer({
 
   // Calculate overall headline summary
   const completedStagesCount = stageStatuses.filter((s) => s.status === "done").length;
-  const currentActiveStage = stageStatuses.find((s) => s.status === "active" || s.status === "interrupted" || s.status === "failed");
 
   return (
     <div className="pipeline-stepper-container" style={{ marginBottom: 16 }}>
@@ -99,10 +97,10 @@ export default function PipelineVisualizer({
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: "#94a3b8", textTransform: "uppercase" }}>
-            Pipeline Progress
+            Review progress
           </span>
           <span className="chip" style={{ fontSize: 11, background: "rgba(255,255,255,0.04)", border: "1px solid var(--border-subtle)" }}>
-            {completedStagesCount} of 5 Stages Complete
+            {completedStagesCount} of 5 steps complete
           </span>
           {reconnecting && (
             <span
@@ -135,7 +133,7 @@ export default function PipelineVisualizer({
             padding: 0,
           }}
         >
-          <span>{showDetails ? "Hide 16-Node Graph" : "View 16-Node Graph"}</span>
+          <span>{showDetails ? "Hide details" : "Show details"}</span>
           {showDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
       </div>

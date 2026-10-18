@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { DealState, InterruptPayload } from "../api";
-import { api, formatMoney, shortHash } from "../api";
-import { findPayee, totalAmountOf, bestRoute } from "../panels/Overview";
+import { api, formatMoney } from "../api";
+import { findPayee, findApplicant, totalAmountOf, bestRoute } from "../panels/Overview";
 import {
   AlertTriangle,
   Lock,
@@ -9,8 +9,6 @@ import {
   CheckCircle2,
   X,
   ArrowRight,
-  Upload,
-  Check,
 } from "lucide-react";
 
 interface ApprovalBarProps {
@@ -18,6 +16,7 @@ interface ApprovalBarProps {
   payload: InterruptPayload | null;
   onResumed: () => void;
   onNavigateTab?: (tab: string) => void;
+  currentTab?: string;
 }
 
 export default function ApprovalBar({
@@ -25,6 +24,7 @@ export default function ApprovalBar({
   payload,
   onResumed,
   onNavigateTab,
+  currentTab,
 }: ApprovalBarProps) {
   const kind =
     payload?.kind ??
@@ -40,9 +40,9 @@ export default function ApprovalBar({
     );
   }
   if (kind === "escalate" || state.escalation_reason) {
-    return <EscalateBanner state={state} onNavigateTab={onNavigateTab} />;
+    return <EscalateBanner onNavigateTab={onNavigateTab} currentTab={currentTab} />;
   }
-  return <ApprovalActionBanner state={state} onResumed={onResumed} />;
+  return <ApprovalActionBanner state={state} payload={payload} onResumed={onResumed} />;
 }
 
 function inferKind(state: DealState): string {
@@ -102,7 +102,7 @@ function AwaitDocBanner({
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontWeight: 700, fontSize: 13, color: "var(--status-warn, #f59e0b)" }}>
-              ACTION REQUIRED: DISCREPANCY DETECTED
+              An update is needed
             </span>
             <span className="chip chip-sev-warn" style={{ fontSize: 10 }}>INTERRUPT</span>
           </div>
@@ -120,7 +120,7 @@ function AwaitDocBanner({
           onClick={() => onNavigateTab?.("findings")}
           style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, padding: "8px 14px" }}
         >
-          <span>View Amendment & Upload in Findings</span>
+          <span>View suggested fix</span>
           <ArrowRight size={14} />
         </button>
       </div>
@@ -133,11 +133,11 @@ function AwaitDocBanner({
 /* ------------------------------------------------------------------ */
 
 function EscalateBanner({
-  state,
   onNavigateTab,
+  currentTab,
 }: {
-  state: DealState;
   onNavigateTab?: (tab: string) => void;
+  currentTab?: string;
 }) {
   return (
     <div
@@ -174,24 +174,24 @@ function EscalateBanner({
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontWeight: 700, fontSize: 13, color: "var(--status-block, #f43f5e)" }}>
-              DEAL ESCALATED — SYSTEM FAILED CLOSED
+              This review needs a closer look
             </span>
-            <span className="chip chip-sev-block" style={{ fontSize: 10 }}>HALTED</span>
+            <span className="chip chip-sev-block" style={{ fontSize: 10 }}>ON HOLD</span>
           </div>
           <p style={{ margin: "2px 0 0", fontSize: 13, color: "#cbd5e1" }}>
-            {state.escalation_reason || "Unfixable discrepancy or security rule triggered. Payout safely prevented."}
+            A person needs to review this deal before it can continue. Check the supporting documents and review history for next steps.
           </p>
         </div>
       </div>
 
-      <button
+      {currentTab !== "audit" && <button
         className="btn btn-secondary"
         onClick={() => onNavigateTab?.("audit")}
         style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}
       >
-        <span>View Audit Proof</span>
+        <span>View review history</span>
         <ArrowRight size={14} />
-      </button>
+      </button>}
     </div>
   );
 }
@@ -202,9 +202,11 @@ function EscalateBanner({
 
 function ApprovalActionBanner({
   state,
+  payload,
   onResumed,
 }: {
   state: DealState;
+  payload: InterruptPayload | null;
   onResumed: () => void;
 }) {
   const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
@@ -212,14 +214,22 @@ function ApprovalActionBanner({
   const [note, setNote] = useState("");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  const payee = findPayee(state);
-  const amountMinor = totalAmountOf(state);
+  const payee = typeof payload?.payee === "string" ? payload.payee : findPayee(state);
+  const approvalApplicant = payload && "applicant" in payload ? payload.applicant : undefined;
+  const applicant = typeof approvalApplicant === "string"
+    ? approvalApplicant
+    : approvalApplicant === null ? null : findApplicant(state);
+  const approvalAmount = payload && "amount_minor" in payload ? payload.amount_minor : undefined;
+  const amountMinor = typeof approvalAmount === "number"
+    ? approvalAmount
+    : approvalAmount === null ? null : totalAmountOf(state);
+  const paymentDetailsValid = !!applicant && !!payee && amountMinor !== null && amountMinor > 0;
   const best = bestRoute(state);
 
   const openBlocks = state.findings.filter(
     (f) => f.severity === "block" && f.status === "open",
   );
-  const canApprove = openBlocks.length === 0 && busy === null;
+  const canApprove = openBlocks.length === 0 && busy === null && paymentDetailsValid;
 
   async function executeApprove() {
     setBusy("approve");
@@ -292,27 +302,32 @@ function ApprovalActionBanner({
           </div>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontWeight: 700, fontSize: 13, color: "var(--status-pass, #10b981)" }}>
-                READY FOR CRYPTOGRAPHIC SIGNING
+              <span style={{ fontWeight: 700, fontSize: 13, color: paymentDetailsValid ? "var(--status-pass, #10b981)" : "var(--status-warn, #f59e0b)" }}>
+                {paymentDetailsValid ? "Ready for your approval" : "Payment details need review"}
               </span>
-              <span className="chip chip-decision-allow" style={{ fontSize: 10 }}>CLEAN</span>
+              <span className="chip chip-decision-allow" style={{ fontSize: 10 }}>SAMPLE DEAL</span>
             </div>
             <p style={{ margin: "2px 0 0", fontSize: 13, color: "#e2e8f0" }}>
-              Payee: <strong>{payee ?? "Verified Exporter"}</strong> · Amount:{" "}
-              <strong>{amountMinor !== null ? formatMoney(amountMinor, "USD") : "—"}</strong>
+              Paying to: <strong>{payee ?? "Not identified"}</strong> · Amount:{" "}
+              <strong>{amountMinor !== null && amountMinor > 0 ? formatMoney(amountMinor, "USD") : "Unavailable"}</strong>
               {best && (
                 <span className="faint" style={{ marginLeft: 8 }}>
-                  (FX: {best.provider})
+                  (Suggested route: {best.provider})
                 </span>
               )}
             </p>
+            {!paymentDetailsValid && (
+              <p role="alert" style={{ margin: "6px 0 0", color: "var(--status-warn, #f59e0b)", fontSize: 12 }}>
+                Approval is disabled until the buyer, seller, and a positive invoice amount are available.
+              </p>
+            )}
           </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <input
             style={{ width: 220, fontSize: 12, padding: "6px 10px" }}
-            placeholder="Audit note (optional for approve)…"
+            placeholder="Add a note (optional)…"
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
@@ -322,7 +337,7 @@ function ApprovalActionBanner({
             onClick={() => setShowConfirmModal(true)}
             style={{ fontSize: 13, padding: "8px 16px" }}
           >
-            {busy === "approve" ? "Signing…" : "Approve with DEMO Signer"}
+            {busy === "approve" ? "Approving…" : "Approve sample deal"}
           </button>
           <button
             className="btn btn-reject"
@@ -330,7 +345,7 @@ function ApprovalActionBanner({
             onClick={executeReject}
             style={{ fontSize: 13, padding: "8px 14px" }}
           >
-            {busy === "reject" ? "Rejecting…" : "Reject"}
+            {busy === "reject" ? "Declining…" : "Decline"}
           </button>
         </div>
       </div>
@@ -375,7 +390,7 @@ function ApprovalActionBanner({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <h3 style={{ margin: 0, fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
                 <CheckCircle2 color="var(--status-pass, #10b981)" size={20} />
-                Confirm Deal Approval
+                Approve this sample deal
               </h3>
               <button
                 className="btn-link"
@@ -387,22 +402,18 @@ function ApprovalActionBanner({
             </div>
 
             <p style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.5, margin: "0 0 16px" }}>
-              You are about to issue a cryptographic Ed25519 signature over this deal. The execution hash is recorded immutably in the audit chain.
+              Please check the payment details below. This demo approval uses a sample signer and does not move real money.
             </p>
 
             <div style={{ background: "rgba(0, 0, 0, 0.35)", borderRadius: 6, padding: 12, marginBottom: 16 }}>
               <dl className="kv" style={{ margin: 0, fontSize: 12 }}>
-                <dt>Deal ID</dt>
-                <dd className="mono">{state.deal_id}</dd>
-                <dt>Beneficiary</dt>
+                <dt>Paying</dt>
+                <dd>{applicant ?? "Not identified"}</dd>
+                <dt>Receiving</dt>
                 <dd>{payee ?? "—"}</dd>
-                <dt>Total Payout</dt>
+                <dt>Payment amount</dt>
                 <dd style={{ fontWeight: 600, color: "var(--status-pass, #10b981)" }}>
-                  {amountMinor !== null ? formatMoney(amountMinor, "USD") : "—"}
-                </dd>
-                <dt>Canonical Hash</dt>
-                <dd className="mono faint">
-                  {state.deal_hash ? shortHash(state.deal_hash, 16) : "Computed upon signing"}
+                  {amountMinor !== null && amountMinor > 0 ? formatMoney(amountMinor, "USD") : "Unavailable"}
                 </dd>
               </dl>
             </div>
@@ -411,7 +422,7 @@ function ApprovalActionBanner({
               <button
                 className="btn btn-secondary"
                 onClick={() => setShowConfirmModal(false)}
-                disabled={busy !== null}
+                disabled={busy !== null || !paymentDetailsValid}
               >
                 Cancel
               </button>

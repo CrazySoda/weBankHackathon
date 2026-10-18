@@ -12,37 +12,37 @@ interface DemoScenarioLoaderProps {
 const SCENARIOS = [
   {
     id: "clean" as ScenarioType,
-    label: "A. Clean",
+    label: "Clean deal",
     fullName: "Clean Deal",
     seed: "seed-01",
-    desc: "Clean LC, Invoice, Packing List. Runs to approval & payout.",
+    desc: "See a clean review reach approval.",
     icon: CheckCircle2,
     badgeColor: "var(--status-pass, #10b981)",
   },
   {
     id: "discrepancy" as ScenarioType,
-    label: "B. Discrepancy",
+    label: "Invoice discrepancy",
     fullName: "Fixable Discrepancy",
     seed: "seed-06",
-    desc: "Invoice $104.5k > LC $100k. Parks at await_corrected_doc.",
+    desc: "See how to fix an invoice amount mismatch.",
     icon: FileWarning,
     badgeColor: "var(--status-warn, #f59e0b)",
   },
   {
     id: "mismatch" as ScenarioType,
-    label: "C. Mismatch",
+    label: "Beneficiary mismatch",
     fullName: "Beneficiary Mismatch",
     seed: "seed-08",
-    desc: "Beneficiary differs in LC vs Invoice. Unfixable; escalates.",
+    desc: "See how ClearTrade handles a critical mismatch.",
     icon: ShieldAlert,
     badgeColor: "var(--status-block, #f43f5e)",
   },
   {
     id: "injection" as ScenarioType,
-    label: "D. Injection",
+    label: "Suspicious document",
     fullName: "Prompt Injection",
     seed: "poison-01",
-    desc: "Invoice contains hidden white text. Blocked by screening.",
+    desc: "See document security screening in action.",
     icon: Bug,
     badgeColor: "var(--status-block, #f43f5e)",
   },
@@ -124,16 +124,9 @@ export default function DemoScenarioLoader({
                   <Icon size={13} />
                 )}
               </div>
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {sc.label}
+              <span className="scenario-copy">
+                <strong>{sc.label}</strong>
+                <small>{sc.desc}</small>
               </span>
             </button>
           );

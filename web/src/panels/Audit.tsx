@@ -1,358 +1,153 @@
 import { useState } from "react";
 import type { AuditTrail, DealState } from "../api";
-import { shortHash, formatMoney } from "../api";
+import { shortHash } from "../api";
 import { DecisionChip } from "../ui";
 import {
-  ShieldCheck,
-  ShieldAlert,
-  Copy,
+  Activity,
   Check,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
-  Clock,
-  Link as LinkIcon,
-  Activity,
-  FileCheck,
-  Shield,
-  Cpu,
-  CheckCircle2,
-  XCircle,
+  ClipboardCheck,
+  Copy,
+  FileCheck2,
+  FilePlus2,
+  FileX2,
+  ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
 
-export default function Audit({
-  audit,
-  state,
-}: {
-  audit: AuditTrail | undefined;
-  state?: DealState | null;
-}) {
+export default function Audit({ audit, state }: { audit: AuditTrail | undefined; state?: DealState | null }) {
+  const [expandedHash, setExpandedHash] = useState<string | null>(null);
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
-  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
   if (!audit) {
-    return (
-      <div className="empty" style={{ padding: 32, textAlign: "center" }}>
-        <Clock size={28} style={{ margin: "0 auto 8px", opacity: 0.5 }} />
-        <div>Loading cryptographic audit trail…</div>
-      </div>
-    );
+    return <div className="review-history-loading" role="status"><Activity size={18}/>Loading deal history…</div>;
   }
 
-  const copyHash = (hash: string) => {
-    void navigator.clipboard.writeText(hash);
-    setCopiedHash(hash);
-    setTimeout(() => setCopiedHash(null), 1500);
+  const copyHash = async (hash: string) => {
+    try {
+      await navigator.clipboard.writeText(hash);
+      setCopiedHash(hash);
+      window.setTimeout(() => setCopiedHash(null), 1500);
+    } catch {
+      // Clipboard access is optional; the history remains readable without it.
+    }
   };
 
-  return (
-    <div className="audit-panel" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* 1. Chain Status Verification Banner */}
-      <div
-        className={`audit-chain ${audit.chain_ok ? "ok" : "bad"}`}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          padding: "14px 18px",
-          borderRadius: "var(--radius, 8px)",
-          border: audit.chain_ok
-            ? "1px solid rgba(16, 185, 129, 0.35)"
-            : "1px solid rgba(244, 63, 94, 0.4)",
-          background: audit.chain_ok
-            ? "rgba(16, 185, 129, 0.08)"
-            : "rgba(244, 63, 94, 0.12)",
-          color: audit.chain_ok ? "var(--status-pass, #10b981)" : "var(--status-block, #f43f5e)",
-        }}
-      >
-        {audit.chain_ok ? (
-          <ShieldCheck size={22} aria-hidden="true" style={{ flexShrink: 0 }} />
-        ) : (
-          <ShieldAlert size={22} aria-hidden="true" style={{ flexShrink: 0 }} />
-        )}
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>
-            {audit.chain_ok
-              ? "Audit Hash Chain Verified"
-              : "CRITICAL: Audit Chain Broken"}
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
-            {audit.chain_ok
-              ? `All ${audit.events.length} events are cryptographically linked via SHA-256 back-pointers. Zero tampering detected.`
-              : "Events fail back-pointer verification — data may have been altered or skipped."}
-          </div>
-        </div>
-        <span
-          className="chip"
-          style={{
-            background: audit.chain_ok ? "rgba(16, 185, 129, 0.15)" : "rgba(244, 63, 94, 0.2)",
-            color: "inherit",
-            border: "none",
-            fontWeight: 700,
-          }}
-        >
-          {audit.chain_ok ? "CHAIN OK" : "INTEGRITY VIOLATION"}
-        </span>
+  return <div className="review-history">
+    <section className={`history-integrity ${audit.chain_ok ? "verified" : "attention"}`}>
+      <span className="history-integrity-icon">{audit.chain_ok ? <ShieldCheck size={21}/> : <ShieldAlert size={21}/>}</span>
+      <div><strong>{audit.chain_ok ? "Review history verified" : "Review history needs attention"}</strong>
+        <p>{audit.chain_ok
+          ? `All ${audit.events.length} saved records are linked in order. We found no changes to the history.`
+          : "Some saved records could not be verified. Treat this history as incomplete."}</p>
       </div>
+      <span className="history-integrity-badge">{audit.chain_ok ? "Verified" : "Check needed"}</span>
+    </section>
 
-      {/* 2. Cryptographic Event Ledger */}
-      {audit.events.length === 0 ? (
-        <div className="empty" style={{ padding: 32, textAlign: "center" }}>
-          <Activity size={28} style={{ margin: "0 auto 8px", opacity: 0.4 }} />
-          <p>No audit events recorded yet.</p>
-          <p className="faint" style={{ fontSize: 12 }}>
-            Execute or run a deal to generate cryptographic state transitions.
-          </p>
-        </div>
-      ) : (
-        <div className="card" style={{ padding: "20px 24px" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 16,
-              borderBottom: "1px solid var(--border-subtle, #334155)",
-              paddingBottom: 10,
-            }}
-          >
-            <h2 style={{ margin: 0, fontSize: 14, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-dim, #94a3b8)", display: "flex", alignItems: "center", gap: 8 }}>
-              <FileCheck size={16} color="var(--accent-cyan, #06b6d4)" />
-              Cryptographic Event Ledger ({audit.events.length} sequential blocks)
-            </h2>
-            <span className="faint mono" style={{ fontSize: 11 }}>
-              Algorithm: SHA-256
-            </span>
-          </div>
+    {audit.events.length === 0 ? <section className="history-empty-state">
+      <span><ClipboardCheck size={22}/></span>
+      <div><strong>Your deal history will appear here</strong><p>Add documents or start a review to see the actions and decisions for this deal.</p></div>
+    </section> : <section className="history-activity-card">
+      <header><div><span className="history-section-icon"><Activity size={16}/></span><div><h2>Deal activity</h2><p>Important actions and review steps, in order.</p></div></div><span className="history-count">{audit.events.length} records</span></header>
+      <div className="history-timeline">
+        {[...audit.events].reverse().map((event) => {
+          const expanded = expandedHash === event.hash;
+          return <article className="history-event" key={event.hash}>
+            <button type="button" className="history-event-toggle" aria-expanded={expanded} onClick={() => setExpandedHash(expanded ? null : event.hash)}>
+              <span className="history-event-icon">{eventIcon(event.kind)}</span>
+              <span className="history-event-copy"><strong>{eventTitle(event.kind)}</strong><small>{eventDescription(event.kind, event.payload)}</small></span>
+              <time>{formatTimestamp(event.ts)}</time>
+              <span className="history-event-chevron">{expanded ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}</span>
+            </button>
+            {expanded && <details className="history-technical-details">
+              <summary>Technical verification details</summary>
+              <div className="history-fingerprint"><span>Record fingerprint</span><button type="button" onClick={() => void copyHash(event.hash)} title="Copy full verification code"><code>{shortHash(event.hash, 12)}</code>{copiedHash === event.hash ? <Check size={13}/> : <Copy size={13}/>}</button></div>
+              <pre>{JSON.stringify(event.payload, null, 2)}</pre>
+            </details>}
+          </article>;
+        })}
+      </div>
+    </section>}
 
-          <div className="audit-timeline" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {audit.events.map((e, i) => {
-              const isExpanded = expandedIndex === i;
-              const hasPrevHash = Boolean((e as unknown as { prev_hash?: string }).prev_hash);
-              const prevHash = (e as unknown as { prev_hash?: string }).prev_hash;
-
-              return (
-                <div
-                  key={i}
-                  style={{
-                    border: "1px solid var(--border-subtle, #232d3b)",
-                    borderRadius: 6,
-                    background: "rgba(15, 23, 42, 0.6)",
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: "8px 12px",
-                      cursor: "pointer",
-                      userSelect: "none",
-                      flexWrap: "wrap",
-                    }}
-                    onClick={() => setExpandedIndex(isExpanded ? null : i)}
-                  >
-                    <span style={{ color: "#64748b", display: "flex", alignItems: "center" }}>
-                      {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    </span>
-
-                    <span className="mono faint" style={{ fontSize: 11, minWidth: 140 }}>
-                      {formatTimestamp(e.ts)}
-                    </span>
-
-                    <span className="chip chip-sev-info" style={{ fontSize: 11, fontWeight: 600 }}>
-                      {e.kind}
-                    </span>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
-                      {hasPrevHash && prevHash && (
-                        <span
-                          className="mono faint"
-                          style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}
-                          title={`Previous event hash: ${prevHash}`}
-                        >
-                          <LinkIcon size={10} />
-                          prev:{shortHash(prevHash, 6)}
-                        </span>
-                      )}
-
-                      <button
-                        className="btn-link mono"
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 4,
-                          background: "rgba(168, 85, 247, 0.1)",
-                          color: "var(--accent-violet, #a855f7)",
-                          border: "1px solid rgba(168, 85, 247, 0.25)",
-                          borderRadius: 4,
-                          padding: "2px 6px",
-                          fontSize: 11,
-                          cursor: "pointer",
-                        }}
-                        onClick={(ev) => {
-                          ev.stopPropagation();
-                          copyHash(e.hash);
-                        }}
-                        title={`Current hash: ${e.hash} (click to copy)`}
-                      >
-                        <span>hash:{shortHash(e.hash, 8)}</span>
-                        {copiedHash === e.hash ? (
-                          <Check size={11} color="var(--status-pass, #10b981)" />
-                        ) : (
-                          <Copy size={11} />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {isExpanded && (
-                    <div
-                      style={{
-                        padding: "10px 14px",
-                        background: "rgba(0, 0, 0, 0.35)",
-                        borderTop: "1px solid rgba(255, 255, 255, 0.05)",
-                        fontSize: 12,
-                      }}
-                    >
-                      <div className="faint" style={{ marginBottom: 6, fontSize: 11, textTransform: "uppercase" }}>
-                        Event Payload
-                      </div>
-                      <pre
-                        className="mono"
-                        style={{
-                          margin: 0,
-                          padding: "8px 10px",
-                          background: "rgba(0, 0, 0, 0.4)",
-                          borderRadius: 4,
-                          border: "1px solid var(--border-subtle, #334155)",
-                          overflowX: "auto",
-                          maxHeight: 200,
-                          color: "#cbd5e1",
-                          fontSize: 11,
-                        }}
-                      >
-                        {JSON.stringify(e.payload, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* 3. Cedar Policy Engine Formal Decision Trace */}
-      {state && state.policy && (
-        <div className="card" style={{ padding: "20px 24px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-            <Shield size={16} color="var(--accent-cyan, #06b6d4)" />
-            <h2 style={{ margin: 0, fontSize: 14, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-dim, #94a3b8)" }}>
-              Cedar Policy Decision Trace
-            </h2>
-          </div>
-
-          <div className="row" style={{ marginBottom: 12 }}>
-            <DecisionChip decision={state.policy.decision} />
-            <span className="muted" style={{ fontSize: 12 }}>
-              Engine: <span className="mono">{state.policy.engine}</span>
-            </span>
-          </div>
-
-          {state.policy.rules.length > 0 && (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border-subtle, #334155)", textAlign: "left", color: "#94a3b8" }}>
-                    <th style={{ padding: "8px 10px" }}>Rule Specification</th>
-                    <th style={{ padding: "8px 10px" }}>Outcome</th>
-                    <th style={{ padding: "8px 10px" }}>Evaluation Detail</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {state.policy.rules.map((r) => (
-                    <tr key={r.rule} style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.04)" }}>
-                      <td className="mono" style={{ padding: "8px 10px", fontWeight: 600 }}>
-                        {r.rule}
-                      </td>
-                      <td style={{ padding: "8px 10px" }}>
-                        <span
-                          className={`chip ${
-                            r.allowed ? "chip-decision-allow" : "chip-sev-block"
-                          }`}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11 }}
-                        >
-                          {r.allowed ? (
-                            <CheckCircle2 size={12} />
-                          ) : (
-                            <XCircle size={12} />
-                          )}
-                          <span>{r.allowed ? "pass" : "fail"}</span>
-                        </span>
-                      </td>
-                      <td className="muted" style={{ padding: "8px 10px" }}>{r.detail}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 4. AI & Model Execution Ledger */}
-      {state && state.served_by && state.served_by.length > 0 && (
-        <div className="card" style={{ padding: "20px 24px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-            <Cpu size={16} color="var(--accent-violet, #8b5cf6)" />
-            <h2 style={{ margin: 0, fontSize: 14, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-dim, #94a3b8)" }}>
-              AI Model Execution & Token Ledger
-            </h2>
-          </div>
-
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border-subtle, #334155)", textAlign: "left", color: "#94a3b8" }}>
-                  <th style={{ padding: "8px 10px" }}>Graph Node</th>
-                  <th style={{ padding: "8px 10px" }}>Alias</th>
-                  <th style={{ padding: "8px 10px" }}>Deployment Served</th>
-                  <th className="num" style={{ padding: "8px 10px", textAlign: "right" }}>Total Tokens</th>
-                  <th className="num" style={{ padding: "8px 10px", textAlign: "right" }}>Cost (USD)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {state.served_by.map((m, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.04)" }}>
-                    <td className="mono" style={{ padding: "8px 10px", fontWeight: 600 }}>{m.node}</td>
-                    <td className="mono" style={{ padding: "8px 10px" }}>{m.alias}</td>
-                    <td className="mono muted" style={{ padding: "8px 10px" }}>
-                      {m.deployment} {m.degraded ? "(degraded)" : ""}
-                    </td>
-                    <td className="num tabular" style={{ padding: "8px 10px", textAlign: "right" }}>
-                      {m.prompt_tokens + m.completion_tokens}
-                    </td>
-                    <td className="num tabular" style={{ padding: "8px 10px", textAlign: "right" }}>
-                      {formatMoney(m.cost_minor, "USD")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+    {state?.policy && <section className="history-policy-card">
+      <header><span className="history-section-icon"><FileCheck2 size={16}/></span><div><h2>Approval checks</h2><p>Requirements checked before this deal can move forward.</p></div><DecisionChip decision={state.policy.decision}/></header>
+      {state.policy.rules.length > 0 && <ul>{state.policy.rules.map((rule) => <li key={rule.rule}>
+        <span className={rule.allowed ? "policy-pass" : "policy-fail"}>{rule.allowed ? <CheckCircle2 size={15}/> : <ShieldAlert size={15}/>}</span>
+        <span><strong>{humanizeRule(rule.rule)}</strong><small>{rule.detail}</small></span>
+      </li>)}</ul>}
+    </section>}
+  </div>;
 }
 
-function formatTimestamp(ts: string): string {
-  try {
-    const d = new Date(ts);
-    if (isNaN(d.getTime())) return ts;
-    return d.toISOString().replace("T", " ").slice(0, 19) + " UTC";
-  } catch {
-    return ts;
+function eventIcon(kind: string) {
+  if (kind === "document_registered") return <FilePlus2 size={16}/>;
+  if (kind === "document_removed") return <FileX2 size={16}/>;
+  if (kind === "node_finished" || kind === "deal_created") return <CheckCircle2 size={16}/>;
+  if (kind === "node_failed" || kind === "budget_exceeded" || kind === "tool_refused") return <ShieldAlert size={16}/>;
+  return <Activity size={16}/>;
+}
+
+function eventTitle(kind: string): string {
+  const titles: Record<string, string> = {
+    deal_created: "Deal created",
+    document_registered: "Document added",
+    document_removed: "Document removed",
+    copilot_asked: "Deal assistant used",
+    node_started: "Review step started",
+    node_finished: "Review step completed",
+    node_interrupted: "Review paused for your input",
+    node_failed: "Review step needs attention",
+    budget_exceeded: "Review paused",
+    tool_refused: "Action blocked for safety",
+  };
+  return titles[kind] ?? "Deal update";
+}
+
+function eventDescription(kind: string, payload: Record<string, unknown>): string {
+  if (kind === "document_registered") return `${String(payload.filename ?? "A document")} was added to this deal.`;
+  if (kind === "document_removed") return "A document was removed from this deal.";
+  if (kind === "copilot_asked") return "You asked the deal assistant a question.";
+  if (kind === "deal_created") return "A workspace was opened for this trade.";
+  if (kind === "node_started" || kind === "node_finished") {
+    const node = humanizeNode(String(payload.node ?? "review"));
+    return kind === "node_started" ? `${node} is underway.` : `${node} is complete.`;
   }
+  if (kind === "node_interrupted") return "The review is waiting for information or a decision from you.";
+  if (kind === "node_failed") return "A review step could not finish. Check the Summary for the next step.";
+  if (kind === "budget_exceeded") return "The review stopped before it could finish. Try again or contact your administrator.";
+  if (kind === "tool_refused") return "A requested action was stopped by a safety check.";
+  return "This action was saved to the deal history.";
+}
+
+function humanizeNode(node: string): string {
+  const labels: Record<string, string> = {
+    intake: "Preparing documents",
+    extract_doc: "Reading a document",
+    injection_screen: "Checking document safety",
+    plan: "Preparing the review",
+    compliance: "Checking trade requirements",
+    fx: "Comparing payment routes",
+    cashflow: "Building the cash forecast",
+    verify: "Cross-checking deal details",
+    resolve_exception: "Reviewing a discrepancy",
+    await_corrected_doc: "Waiting for a corrected document",
+    credit_offer: "Checking financing options",
+    policy_check: "Checking approval requirements",
+    human_approval: "Requesting approval",
+    execute: "Processing the demo payment",
+    escalate: "Preparing next steps",
+    report: "Preparing your summary",
+  };
+  return labels[node] ?? "Reviewing the deal";
+}
+
+function humanizeRule(rule: string): string {
+  return rule.replace(/_/g, " ").replace(/\b\w/g, (letter: string) => letter.toUpperCase());
+}
+
+function formatTimestamp(timestamp: string): string {
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? timestamp : new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
 }

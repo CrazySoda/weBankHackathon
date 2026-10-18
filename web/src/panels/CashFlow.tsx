@@ -1,15 +1,29 @@
 import type { DealState } from "../api";
 import { formatMoney } from "../api";
 import CashChart from "../components/CashChart";
-import { Calendar, DollarSign, TrendingDown, Clock } from "lucide-react";
+import { Calendar, DollarSign, TrendingDown, Clock, WalletCards } from "lucide-react";
+import GuidedEmptyState from "../components/GuidedEmptyState";
 
-export default function CashFlow({ state }: { state: DealState }) {
+export default function CashFlow({ state, onRunReview, onAddDocuments }: { state: DealState; onRunReview?: () => void; onAddDocuments?: () => void }) {
   const p = state.cash_projection;
   if (!p) {
-    return <div className="card empty">No cash projection evaluated yet — run the deal to project cash flow.</div>;
+    const hasDocuments = state.documents.length > 0;
+    return <GuidedEmptyState
+      icon={WalletCards}
+      eyebrow="Cash forecast"
+      title={hasDocuments ? "See how this deal affects cash" : "Build your cash forecast"}
+      description={hasDocuments
+        ? "Review the trade documents to estimate when money may leave and arrive, and spot any projected shortfall."
+        : "Add the deal documents first. ClearTrade will use their payment details to create an illustrative forecast."}
+      actionLabel={hasDocuments ? "Run deal review" : "Add documents"}
+      onAction={hasDocuments ? onRunReview : onAddDocuments}
+      steps={["Read payment terms", "Map expected cash dates", "See possible shortfalls"]}
+      footnote="Forecasts are estimates, not a live bank balance."
+    />;
   }
 
   const isMinNegative = p.min_balance_minor < 0;
+  const horizonDays = Math.max(0, p.daily_balance_minor.length - 1);
 
   return (
     <div>
@@ -37,7 +51,7 @@ export default function CashFlow({ state }: { state: DealState }) {
           >
             {formatMoney(p.min_balance_minor, p.currency)}
           </div>
-          <div className="sub">Day {p.min_balance_day} of horizon</div>
+          <div className="sub">{p.min_balance_day === 0 ? "At the start" : `Day ${p.min_balance_day} of forecast`}</div>
         </div>
 
         <div className="stat">
@@ -60,10 +74,10 @@ export default function CashFlow({ state }: { state: DealState }) {
           <div className="label">
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               <Calendar size={13} color="var(--text-dim, #94a3b8)" />
-              <span>Projection Horizon</span>
+              <span>Forecast period</span>
             </span>
           </div>
-          <div className="value tabular">{p.daily_balance_minor.length} days</div>
+          <div className="value tabular">{horizonDays} days</div>
           <div className="sub">{p.currency} denomination</div>
         </div>
       </div>
@@ -77,23 +91,26 @@ export default function CashFlow({ state }: { state: DealState }) {
             letterSpacing: "0.04em",
           }}
         >
-          91-Day Daily Working Capital Projection
+          {horizonDays}-Day Cash Flow Projection
         </h3>
         <CashChart projection={p} />
+        <p className="faint" style={{ margin: "12px 0 0", fontSize: 12 }}>
+          Illustrative estimate: assumes a zero opening balance, a 30% deposit on day 0, and the LC amount received at maturity. It does not use a bank account balance.
+        </p>
       </div>
 
       <div className="card">
-        <h3 style={{ margin: "0 0 10px", fontSize: 14 }}>Scheduled Trade Settlement Events</h3>
+        <h3 style={{ margin: "0 0 10px", fontSize: 14 }}>Expected cash movements</h3>
         {p.events.length === 0 ? (
-          <div className="empty">No cash events recorded in the projection window.</div>
+          <div className="cash-events-empty"><Calendar size={18}/><div><strong>No dated payments in this forecast</strong><span>Add documents with payment dates to see when cash may move.</span></div></div>
         ) : (
           <table>
             <thead>
               <tr>
                 <th className="num">Day</th>
-                <th>Event Label</th>
-                <th>Classification</th>
-                <th className="num">Cash Impact</th>
+                <th>Payment</th>
+                <th>Type</th>
+                <th className="num">Expected change</th>
               </tr>
             </thead>
             <tbody>

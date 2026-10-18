@@ -9,11 +9,13 @@ Endpoints:
   GET    /deals/{id}/stream         (SSE: node_started/node_finished/interrupt/...)
   POST   /deals/{id}/resume
   GET    /deals/{id}/audit
+  POST   /deals/{id}/copilot          (read-only deal Q&A, tool-less model call)
 """
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -24,7 +26,9 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.api.copilot import CopilotLimit, CopilotRequest, CopilotService, CopilotUnverified
 from app.api.deals import DealRunner
+from app.audit.events import AuditEvent
 from app.config import Settings, get_settings
 from app.db.persistence import DealStore
 from app.security.storage import DocumentStore
@@ -75,6 +79,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="ClearTrade", version="0.1.0", lifespan=lifespan)
     app.state.runner = runner
+    copilot = CopilotService(
+        max_turns=settings.copilot_max_turns_per_deal,
+        max_tokens=settings.copilot_max_tokens_per_deal,
+    )
+    app.state.copilot = copilot
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
@@ -138,6 +147,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ref = runner.add_document(deal_id, data, file.filename, mime, kind)
         return {"doc_id": ref.doc_id, "sha256": ref.sha256, **SYNTHETIC_BADGE}
 
+    @app.delete("/deals/{deal_id}/documents/{doc_id}")
+    async def remove_document(deal_id: str, doc_id: str) -> dict[str, Any]:
+        if deal_id not in runner.deals:
+            raise HTTPException(404, "unknown deal")
+        try:
+            ref = runner.remove_document(deal_id, doc_id)
+        except KeyError:
+            raise HTTPException(404, "unknown document") from None
+        except RuntimeError as error:
+            raise HTTPException(409, str(error)) from None
+        return {"removed": True, "doc_id": ref.doc_id, **SYNTHETIC_BADGE}
+
     background_tasks: set[asyncio.Task[None]] = set()
 
     @app.post("/deals/{deal_id}/run")
@@ -150,6 +171,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         background_tasks.add(task)
         task.add_done_callback(background_tasks.discard)
         return {"started": True, "stream": f"/deals/{deal_id}/stream", **SYNTHETIC_BADGE}
+
+    @app.post("/deals/{deal_id}/readiness")
+    async def check_document_readiness(deal_id: str) -> dict[str, Any]:
+        if deal_id not in runner.deals:
+            raise HTTPException(404, "unknown deal")
+        try:
+            rec = await runner.check_document_readiness(deal_id)
+        except RuntimeError as error:
+            if str(error) == "deal already running":
+                raise HTTPException(409, "deal already running") from None
+            raise HTTPException(502, "document extraction failed") from None
+        return {"state": rec.state.model_dump(), "running": False, **SYNTHETIC_BADGE}
 
     @app.get("/deals/{deal_id}")
     async def get_deal(deal_id: str) -> dict[str, Any]:
@@ -273,6 +306,58 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {
             "events": runner.audit_trail(deal_id),
             "chain_ok": runner.audit.verify_chain(runner.deals[deal_id].state.tenant_id),
+            **SYNTHETIC_BADGE,
+        }
+
+    @app.post("/deals/{deal_id}/copilot")
+    async def ask_copilot(deal_id: str, body: CopilotRequest) -> dict[str, Any]:
+        try:
+            rec = runner.deals[deal_id]
+        except KeyError:
+            raise HTTPException(404, "unknown deal") from None
+        state = rec.state
+        outcome = "answered"
+        reply = None
+        try:
+            reply = await copilot.ask(runner.llm, state, body)
+        except CopilotLimit:
+            outcome = "limit"
+        except CopilotUnverified:
+            outcome = "unverified_numbers"
+        except Exception as e:  # model/proxy failure: fail closed, UI falls back
+            outcome = f"error:{type(e).__name__}"
+        if reply is not None and reply.screened:
+            outcome = "declined"
+        # question text stays out of the audit log; its hash ties the event to it
+        runner.audit.emit(
+            AuditEvent(
+                kind="copilot_asked",
+                deal_id=deal_id,
+                tenant_id=state.tenant_id,
+                payload={
+                    "node": "copilot",
+                    "outcome": outcome,
+                    "question_sha256": hashlib.sha256(body.question.encode("utf-8")).hexdigest(),
+                    "prompt_version": reply.prompt_version if reply else "",
+                    "deployment": reply.use.deployment if reply and reply.use else "",
+                    "tokens": (
+                        reply.use.prompt_tokens + reply.use.completion_tokens
+                        if reply and reply.use
+                        else 0
+                    ),
+                },
+            )
+        )
+        if reply is None:
+            status = 429 if outcome == "limit" else 422 if outcome == "unverified_numbers" else 503
+            raise HTTPException(status, outcome)
+        return {
+            "answer": reply.answer,
+            "card": reply.card,
+            "finding_ids": reply.finding_ids,
+            "follow_ups": reply.follow_ups,
+            "declined": reply.screened,
+            "model": reply.use.deployment if reply.use else None,
             **SYNTHETIC_BADGE,
         }
 

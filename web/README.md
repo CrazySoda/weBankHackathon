@@ -14,6 +14,14 @@ Open http://localhost:5173. The dev server proxies `/api/*` to the FastAPI
 backend at `http://localhost:8000` (see `vite.config.ts`), so start the backend
 first (`uvicorn app.main:app` from `backend/`, or `docker compose up backend`).
 
+For the full Docker stack with hot reload, run `make up-dev` from the repository
+root. The web container mounts `web/` and Vite watches source files, including
+on Windows Docker Desktop. Edit and save a file to refresh the browser without
+rebuilding; run `make down-dev` to stop that stack. Use `make up` for the
+production-style static web container. Follow all relevant service logs with
+`make logs-dev`, frontend-only logs with `make logs-web`, and check service
+status with `make status-dev` (press Ctrl+C to stop following logs).
+
 ## Run (container)
 
 ```bash

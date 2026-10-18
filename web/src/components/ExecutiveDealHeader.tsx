@@ -1,6 +1,6 @@
 import type { DealState } from "../api";
 import { formatMoney } from "../api";
-import { findPayee, totalAmountOf } from "../panels/Overview";
+import { findApplicant, findGoods, findPayee, totalAmountOf } from "../panels/Overview";
 import {
   ShieldAlert,
   CheckCircle2,
@@ -9,8 +9,6 @@ import {
   Play,
   Lock,
   Building2,
-  FileCheck2,
-  PlaneTakeoff,
   Package,
 } from "lucide-react";
 
@@ -20,7 +18,6 @@ interface ExecutiveDealHeaderProps {
   onRunDeal?: () => void;
   running?: boolean;
 }
-
 export default function ExecutiveDealHeader({
   state,
   onNavigateTab,
@@ -35,10 +32,6 @@ export default function ExecutiveDealHeader({
   const openBlocks = state.findings.filter(
     (f) => f.severity === "block" && f.status === "open",
   );
-  const openWarns = state.findings.filter(
-    (f) => f.severity === "warn" && f.status === "open",
-  );
-
   const isExecuted = Boolean(state.receipt);
   const isEscalated = Boolean(state.escalation_reason);
   const hasDiscrepancy = openBlocks.length > 0 || Boolean(state.amendment_draft);
@@ -50,12 +43,12 @@ export default function ExecutiveDealHeader({
     <div
       className="executive-deal-header"
       style={{
-        background: "linear-gradient(180deg, rgba(22, 30, 41, 0.95) 0%, rgba(15, 23, 34, 0.95) 100%)",
-        border: "1px solid rgba(255, 255, 255, 0.08)",
+        background: "linear-gradient(125deg, #172520 0%, #111917 68%, #14241e 100%)",
+        border: "1px solid #2a3b34",
         borderRadius: "var(--radius, 10px)",
         padding: "20px 24px",
         marginBottom: 20,
-        boxShadow: "0 8px 24px -4px rgba(0, 0, 0, 0.3)",
+        boxShadow: "0 18px 50px -32px rgba(0, 0, 0, 0.9)",
       }}
     >
       <div
@@ -79,10 +72,10 @@ export default function ExecutiveDealHeader({
                 textTransform: "uppercase",
               }}
             >
-              Export Trade Finance Pre-Flight
+              DEAL SUMMARY
             </span>
             <span className="faint mono" style={{ fontSize: 11 }}>
-              ID: {state.deal_id}
+              {state.deal_id}
             </span>
           </div>
 
@@ -91,7 +84,7 @@ export default function ExecutiveDealHeader({
               fontSize: 28,
               fontWeight: 800,
               letterSpacing: "-0.02em",
-              color: "#f8fafc",
+              color: "#f1f7f3",
               marginBottom: 8,
               fontFamily: "var(--font-mono, monospace)",
             }}
@@ -106,18 +99,18 @@ export default function ExecutiveDealHeader({
               alignItems: "center",
               gap: 8,
               fontSize: 13,
-              color: "#cbd5e1",
+                color: "#a4b2ac",
               flexWrap: "wrap",
             }}
           >
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
               <Building2 size={14} color="var(--accent-cyan, #06b6d4)" />
-              <strong style={{ color: "#fff" }}>{payee ?? "Shenzhen Exporter"}</strong>
+              <strong style={{ color: "#edf5ef" }}>{payee ?? "Seller not identified"}</strong>
             </span>
             <ArrowRight size={13} color="var(--text-faint, #64748b)" />
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
               <Building2 size={14} color="var(--text-dim, #94a3b8)" />
-              <span>{applicant ?? "Dhaka Trading House"}</span>
+              <span>{applicant ?? "Buyer not identified"}</span>
             </span>
           </div>
 
@@ -166,7 +159,7 @@ export default function ExecutiveDealHeader({
               style={{ fontSize: 12, padding: "5px 12px", fontWeight: 700 }}
             >
               <ShieldAlert size={14} />
-              <span>Deal Escalated (Failed Closed)</span>
+              <span>Needs a closer look</span>
             </div>
           )}
 
@@ -176,7 +169,7 @@ export default function ExecutiveDealHeader({
               style={{ fontSize: 12, padding: "5px 12px", fontWeight: 700 }}
             >
               <AlertTriangle size={14} />
-              <span>Action Required ({openBlocks.length} Discrepancy)</span>
+              <span>Needs attention ({openBlocks.length})</span>
             </div>
           )}
 
@@ -193,7 +186,7 @@ export default function ExecutiveDealHeader({
               }}
             >
               <CheckCircle2 size={14} />
-              <span>Verification Passed — Ready to Sign</span>
+              <span>Checks complete — Ready for approval</span>
             </div>
           )}
 
@@ -208,7 +201,7 @@ export default function ExecutiveDealHeader({
                 padding: "5px 12px",
               }}
             >
-              <span>Ready for Verification</span>
+              <span>Ready for review</span>
             </div>
           )}
 
@@ -219,7 +212,7 @@ export default function ExecutiveDealHeader({
               onClick={() => onNavigateTab?.("findings")}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, padding: "8px 16px" }}
             >
-              <span>Review Discrepancy in Findings</span>
+              <span>See what needs attention</span>
               <ArrowRight size={14} />
             </button>
           )}
@@ -231,7 +224,7 @@ export default function ExecutiveDealHeader({
               style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, padding: "8px 16px" }}
             >
               <Lock size={14} />
-              <span>Sign Cryptographic Approval</span>
+              <span>Review approval</span>
             </button>
           )}
 
@@ -243,32 +236,11 @@ export default function ExecutiveDealHeader({
               style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, padding: "8px 16px" }}
             >
               <Play size={14} />
-              <span>Run Pre-Flight Pipeline</span>
+              <span>Review this deal</span>
             </button>
           )}
         </div>
       </div>
     </div>
   );
-}
-
-function findApplicant(state: DealState): string | null {
-  for (const d of state.extracted) {
-    const a = d.fields.find((f) => f.name === "applicant" || f.name === "buyer");
-    if (a && a.value) return String(a.value);
-  }
-  return null;
-}
-
-function findGoods(state: DealState): string | null {
-  for (const d of state.extracted) {
-    const g = d.fields.find(
-      (f) =>
-        f.name === "goods_description" ||
-        f.name === "description_of_goods" ||
-        f.name === "goods",
-    );
-    if (g && g.value) return String(g.value);
-  }
-  return null;
 }

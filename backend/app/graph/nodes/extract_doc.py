@@ -90,6 +90,8 @@ async def extract_doc(state: DealState, ctx: NodeContext) -> dict[str, Any]:
     doc = state.pending_doc
     if doc is None:
         return {}
+    if any(item.doc_id == doc.doc_id and item.sha256 == doc.sha256 for item in state.extracted):
+        return {}
     assert ctx.llm is not None, "extract_doc requires an LLM client"
     assert ctx.docs is not None, "extract_doc requires a document store"
 

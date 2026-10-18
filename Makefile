@@ -6,7 +6,8 @@
 #   make install        first-time setup
 #   make gates          everything CI checks (lint + types + tests + coverage)
 #   make eval           the metrics table (recall / false alarms / completion)
-#   make up / down      the full docker stack
+#   make up / down          the production-style docker stack
+#   make up-dev / down-dev  the docker stack with Vite hot reload
 #   make reset-demo     wipe all demo state and start clean
 
 .DEFAULT_GOAL := help
@@ -14,6 +15,11 @@ SHELL := /bin/bash
 
 BACKEND := backend
 WEB := web
+
+# ----------------------------------------------------------- llm proxy ----
+.PHONY: llm-key
+llm-key: ## create a budget-capped LiteLLM virtual key and save it to .env
+	uv run --directory $(BACKEND) python ../scripts/generate_litellm_key.py
 
 # ---------------------------------------------------------------- setup ----
 .PHONY: install
@@ -93,13 +99,34 @@ up: ## start the full docker stack (backend :8000, web :5173, proxy :4000)
 	docker compose up --build -d
 	@echo "web console: http://localhost:5173 · api: http://localhost:8000/health"
 
+.PHONY: up-dev
+up-dev: ## start the stack with Vite hot reload for web source changes
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build -d
+	@echo "web console with hot reload: http://localhost:5173"
+
 .PHONY: down
 down: ## stop the stack (keeps volumes)
 	docker compose down
 
+.PHONY: down-dev
+down-dev: ## stop the stack started with make up-dev (keeps volumes)
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+
 .PHONY: logs
 logs: ## tail backend + proxy logs
 	docker compose logs -f backend litellm
+
+.PHONY: logs-dev
+logs-dev: ## follow web, backend and proxy logs from the hot-reload stack
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml logs --tail=100 --timestamps -f web backend litellm
+
+.PHONY: logs-web
+logs-web: ## follow only frontend/Vite logs from the hot-reload stack
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml logs --tail=100 --timestamps -f web
+
+.PHONY: status-dev
+status-dev: ## show service status for the hot-reload stack
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml ps
 
 # ------------------------------------------------------------------ demo ----
 .PHONY: reset-demo

@@ -11,13 +11,14 @@ export type DocKind =
   | "commercial_invoice"
   | "packing_list"
   | "bill_of_lading"
+  | "presentation_schedule"
   | "unknown";
 
 export type Severity = "info" | "warn" | "block";
 export type FindingStatus = "open" | "fixed" | "waived";
 
 export interface Money {
-  amount_minor: number;
+  minor: number;
   currency: string;
 }
 
@@ -95,6 +96,7 @@ export interface FxOption {
   effective_rate_scaled: number;
   spread_bp: number;
   fee_minor: number;
+  fee_currency?: string | null;
 }
 
 export interface CashEventState {
@@ -166,6 +168,7 @@ export interface ModelUse {
   completion_tokens: number;
   cost_minor: number;
   degraded: boolean;
+  prompt_version: string;
 }
 
 export interface CheckPlan {
@@ -195,6 +198,8 @@ export interface DealState {
   served_by: ModelUse[];
   fatal_error: string | null;
   escalation_reason: string | null;
+  report_summary: string | null;
+  pending_doc: DocRef | null;
 }
 
 export interface DealDetail {
@@ -220,30 +225,26 @@ export interface AuditTrail {
 export interface ApprovalInterruptPayload {
   kind: "human_approval";
   deal_id: string;
-  findings: Array<{
-    check_id: string;
-    rule_id: string;
-    severity: Severity;
-    status: FindingStatus;
-  }>;
-  waivers: Array<{ check_id: string }>;
+  findings: Finding[];
+  waivers: Finding[];
   /** Signed as part of the approval render: the approver must see these. */
-  injection_flags: Array<{
-    kind: string;
-    severity: Severity;
-    doc_id: string;
-    detail: string;
-  }>;
+  injection_flags: Flag[];
   fx_options: FxOption[];
   finance_offer: FinanceOfferState | null;
   payee: string | null;
+  applicant: string | null;
   amount_minor: number | null;
+  policy: PolicyDecision | null;
 }
 
 export interface CorrectedDocInterruptPayload {
   kind: "await_corrected_doc";
   amendment_draft: string | null;
   open_block_findings: Array<{ rule_id: string; summary: string }>;
+}
+
+export interface SyntheticBadge {
+  synthetic_data: boolean;
 }
 
 export interface InterruptPayload {
@@ -269,13 +270,21 @@ export type StreamEvent = {
   payload?: InterruptPayload;
 };
 
-export interface ApprovalStub {
-  deal_hash: string;
-  approver_id: string;
-  method: "webauthn_passkey" | "demo_key";
-  signature_b64: string;
-  signed_at: string;
-  nonce: string;
+export type CopilotCardKind = "findings" | "fx" | "cash" | "documents" | "none";
+
+export interface CopilotQuestion {
+  question: string;
+  history: Array<{ role: "user" | "assistant"; text: string }>;
+  focus_check_id?: string | null;
+}
+
+export interface CopilotReply extends SyntheticBadge {
+  answer: string;
+  card: CopilotCardKind;
+  finding_ids: string[];
+  follow_ups: string[];
+  declined: boolean;
+  model: string | null;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -294,52 +303,68 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  health: () => request<{ status: string; env: string }>("/health"),
+  health: () => request<{ status: string; env: string } & SyntheticBadge>("/health"),
 
   createDeal: () =>
-    request<{ deal_id: string }>("/deals", {
+    request<{ deal_id: string } & SyntheticBadge>("/deals", {
       method: "POST",
     }),
 
   loadSeedDeal: (seedId: string) =>
-    request<{ deal_id: string; seed_id: string }>(`/deals/seed/${encodeURIComponent(seedId)}`, {
+    request<{ deal_id: string; seed_id: string } & SyntheticBadge>(`/deals/seed/${encodeURIComponent(seedId)}`, {
       method: "POST",
+    }),
+
+  askCopilot: (dealId: string, body: CopilotQuestion) =>
+    request<CopilotReply>(`/deals/${encodeURIComponent(dealId)}/copilot`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     }),
 
   uploadDocument: (dealId: string, file: File, kind: DocKind) => {
     const form = new FormData();
     form.append("file", file);
     form.append("kind", kind);
-    return request<{ doc_id: string; sha256: string }>(
+    return request<{ doc_id: string; sha256: string } & SyntheticBadge>(
       `/deals/${encodeURIComponent(dealId)}/documents`,
       { method: "POST", body: form },
     );
   },
 
+  removeDocument: (dealId: string, docId: string) =>
+    request<{ removed: boolean; doc_id: string } & SyntheticBadge>(
+      `/deals/${encodeURIComponent(dealId)}/documents/${encodeURIComponent(docId)}`,
+      { method: "DELETE" },
+    ),
+
   runDeal: (dealId: string) =>
-    request<{ started: boolean; stream: string }>(
+    request<{ started: boolean; stream: string } & SyntheticBadge>(
       `/deals/${encodeURIComponent(dealId)}/run`,
       { method: "POST" },
     ),
+
+  checkReadiness: (dealId: string) =>
+    request<DealDetail>(`/deals/${encodeURIComponent(dealId)}/readiness`, { method: "POST" }),
 
   getDeal: (dealId: string) =>
     request<DealDetail>(`/deals/${encodeURIComponent(dealId)}`),
 
   signDemo: (dealId: string) =>
-    request<{ approval: ApprovalStub; demo_shortcut: boolean; notice: string }>(
+    request<{ approval: SignedApproval; demo_shortcut: boolean; notice: string } & SyntheticBadge>(
       `/deals/${encodeURIComponent(dealId)}/sign_demo`, {
       method: "POST",
     }),
 
-  resume: (dealId: string, body: { action: string; approval?: ApprovalStub; note?: string }) =>
-    request<{ resumed: boolean }>(`/deals/${encodeURIComponent(dealId)}/resume`, {
+  resume: (dealId: string, body: { action: string; approval?: SignedApproval; note?: string }) =>
+    request<{ resumed: boolean } & SyntheticBadge>(`/deals/${encodeURIComponent(dealId)}/resume`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
 
   demoSeed: (scenario: "clean" | "discrepancy" | "mismatch" | "injection") =>
-    request<{ deal_id: string; scenario: string }>(
+    request<{ deal_id: string; scenario: string } & SyntheticBadge>(
       `/deals/demo-seed/${encodeURIComponent(scenario)}`,
       { method: "POST" },
     ),

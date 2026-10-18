@@ -48,6 +48,15 @@ def _payee(state: DealState) -> str | None:
     return None
 
 
+def _applicant(state: DealState) -> str | None:
+    for d in state.current_extracted:
+        if d.kind == "letter_of_credit":
+            applicant = d.get("applicant")
+            if applicant is not None:
+                return str(applicant.value)
+    return None
+
+
 def approval_render(state: DealState) -> dict[str, Any]:
     """Canonical public approval screen data shared by API and graph."""
     amount_minor = None
@@ -87,6 +96,7 @@ def approval_render(state: DealState) -> dict[str, Any]:
             state.finance_offer.model_dump(mode="json") if state.finance_offer else None
         ),
         "payee": _payee(state),
+        "applicant": _applicant(state),
         "amount_minor": amount_minor,
         "policy": state.policy.model_dump(mode="json") if state.policy else None,
     }

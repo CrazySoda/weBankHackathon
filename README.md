@@ -54,7 +54,10 @@ production authentication.
 | `make eval` | the seed-suite metrics table (offline, deterministic) |
 | `make seeds` / `make seeds-verify` | regenerate synthetic PDFs / prove byte-identical |
 | `make render-config` / `make proxy` | render LiteLLM config from env / run the proxy via uvx |
-| `make up` / `make down` / `make reset-demo` | docker stack lifecycle + full demo wipe |
+| `make up` / `make down` | production-style Docker stack lifecycle |
+| `make up-dev` / `make down-dev` | Docker stack with Vite hot reload for frontend edits |
+| `make logs-dev` / `make logs-web` / `make status-dev` | follow dev logs or inspect dev service status |
+| `make reset-demo` | full demo wipe |
 
 uv is the only supported Python runner (never bare `python`/`pip` — the
 hash-locked `uv.lock` only protects runs inside uv); the Makefile wraps it.
@@ -69,9 +72,22 @@ console. Equivalent raw commands are shown in
 # 0. enable Docker Desktop WSL integration for this distro (WSL2), then:
 cp .env.example .env     # fill in keys (see comments; LLM_PROVIDER + *_API_KEYS)
 make up                  # postgres+pgvector, valkey, litellm, backend, web
+# Create the backend's spend-capped LiteLLM key and save it into .env:
+make llm-key
+# Then recreate backend to load the new key:
+docker compose up -d --force-recreate backend
+# make up-dev              # same stack, with Vite hot reload for web edits
 # web console :5173 · api :8000/health · LiteLLM proxy :4000
 make reset-demo          # anytime: wipe back to a clean demo
 ```
+
+`make llm-key` requires the proxy to be running and uses `LITELLM_MASTER_KEY`
+from `.env`. It creates a key restricted to the `reasoner` and `fast` model
+aliases with a default $10/30-day spend cap, writes the key to
+`LITELLM_VIRTUAL_KEY`, and never prints the secret. Adjust the cap with
+`uv run --directory backend python ../scripts/generate_litellm_key.py --max-budget 25`.
+For the hot-reload Compose stack, recreate the backend with
+`docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --force-recreate backend`.
 
 Then follow **[WALKTHROUGH.md](WALKTHROUGH.md)**.
 
