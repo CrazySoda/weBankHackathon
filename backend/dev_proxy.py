@@ -47,8 +47,13 @@ async def chat_completions(request: Request):
     body = await request.json()
     model_req = body.get("model", "fast")
     
-    # Map reasoner/fast to actual OpenRouter model
+    # Map reasoner/fast to actual OpenRouter model with fallbacks
     body["model"] = MODEL
+    body["models"] = [
+        MODEL,
+        "liquid/lfm-2.5-2.6b:free",
+        "xingchen-agi/xing4.0-29b-a4b:free",
+    ]
     
     headers = {
         "Authorization": f"Bearer {OPENROUTER_KEY}",
@@ -57,7 +62,7 @@ async def chat_completions(request: Request):
         "X-Title": "ClearTrade Trade Finance Engine",
     }
     
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         try:
             resp = await client.post(OPENROUTER_URL, json=body, headers=headers)
             return Response(
