@@ -45,12 +45,12 @@ export default function ApprovalBar({
   if (state.declined && !state.receipt) {
     return <DeclinedBanner state={state} onNavigateTab={onNavigateTab} currentTab={currentTab} />;
   }
-  if (kind === "escalate" || state.escalation_reason) {
+  if (kind === "escalate" || state.escalation_reason || state.fatal_error) {
     return (
       <EscalateBanner
         onNavigateTab={onNavigateTab}
         currentTab={currentTab}
-        reason={state.escalation_reason}
+        reason={state.escalation_reason || state.fatal_error}
       />
     );
   }
@@ -138,7 +138,7 @@ function DeclinedBanner({
 
 function inferKind(state: DealState): string {
   if (state.amendment_draft) return "await_corrected_doc";
-  if (state.escalation_reason) return "escalate";
+  if (state.escalation_reason || state.fatal_error) return "escalate";
   return "human_approval";
 }
 
