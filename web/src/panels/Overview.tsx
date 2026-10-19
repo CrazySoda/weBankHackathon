@@ -109,7 +109,29 @@ export default function Overview({
         </div>
       </div>
 
-      {/* 3. Trade Counterparties & Goods Breakdown */}
+      {/* 3. Settlement & Payout Receipt (When Executed) */}
+      {state.receipt && (
+        <div className="card" style={{ padding: "20px 24px", marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <ReceiptIcon size={18} color="var(--status-pass, #10b981)" />
+            <h2 style={{ margin: 0, fontSize: 16 }}>Payment receipt</h2>
+          </div>
+          <dl className="kv" style={{ margin: 0 }}>
+            <dt>Receipt number</dt>
+            <dd className="mono">{state.receipt.receipt_id}</dd>
+            <dt>Payment reference</dt>
+            <dd className="mono">{state.receipt.payout_ref}</dd>
+            <dt>Paid</dt>
+            <dd className="mono" style={{ fontWeight: 700, color: "var(--status-pass, #10b981)", fontSize: 15 }}>
+              {formatMoney(state.receipt.amount.minor, state.receipt.amount.currency)}
+            </dd>
+            <dt>Completed</dt>
+            <dd className="mono">{state.receipt.executed_at}</dd>
+          </dl>
+        </div>
+      )}
+
+      {/* 4. Trade Counterparties & Goods Breakdown */}
       <div className="card" style={{ marginBottom: 20, padding: "20px 24px" }}>
         <h2 style={{ fontSize: 14, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-dim, #94a3b8)", margin: "0 0 16px" }}>
           This shipment
@@ -179,28 +201,6 @@ export default function Overview({
           </div>
         )}
       </div>
-
-      {/* 4. Settlement & Payout Receipt (When Executed) */}
-      {state.receipt && (
-        <div className="card" style={{ padding: "20px 24px", marginBottom: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-            <ReceiptIcon size={18} color="var(--status-pass, #10b981)" />
-            <h2 style={{ margin: 0, fontSize: 16 }}>Payment receipt</h2>
-          </div>
-          <dl className="kv" style={{ margin: 0 }}>
-            <dt>Receipt number</dt>
-            <dd className="mono">{state.receipt.receipt_id}</dd>
-            <dt>Payment reference</dt>
-            <dd className="mono">{state.receipt.payout_ref}</dd>
-            <dt>Paid</dt>
-            <dd className="mono" style={{ fontWeight: 700, color: "var(--status-pass, #10b981)", fontSize: 15 }}>
-              {formatMoney(state.receipt.amount.minor, state.receipt.amount.currency)}
-            </dd>
-            <dt>Completed</dt>
-            <dd className="mono">{state.receipt.executed_at}</dd>
-          </dl>
-        </div>
-      )}
 
       {/* Subtle Synthetic Footnote */}
       <p className="faint" style={{ fontSize: 12, marginTop: 16, textAlign: "center" }}>

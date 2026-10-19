@@ -152,7 +152,14 @@ class DealRunner:
         self._pool: Any = None
         self.audit = EventfulAuditSink(self, store.audit if store else None)
         self.anchor = MockAnchor()
-        self.idempotency = Redis.from_url(settings.redis_url, decode_responses=True)
+        try:
+            r = Redis.from_url(settings.redis_url, decode_responses=True)
+            r.ping()
+            self.idempotency = r
+        except Exception:
+            import fakeredis
+
+            self.idempotency = fakeredis.FakeRedis(decode_responses=True)
         raw_keys = json.loads(settings.approval_public_keys_json)
         if not raw_keys and settings.env == "demo":
             from app.security.approval import DEMO_APPROVER_ID, DEMO_PUBLIC_KEY_B64
