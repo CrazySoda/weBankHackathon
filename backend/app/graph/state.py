@@ -354,6 +354,9 @@ class DealState(BaseModel):
     fx_options: list[FxOption] = []
     # the route the approver chose (set when they approve); None = the best-net default
     selected_fx_route: str | None = None
+    # the approver declined at the approval step: nothing is paid, the deal ends at the report
+    declined: bool = False
+    decline_note: str = ""
     cash_projection: CashProjectionState | None = None
     verified: list[Finding] = []
     amendment_draft: str | None = None

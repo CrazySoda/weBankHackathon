@@ -42,6 +42,9 @@ export default function ApprovalBar({
       />
     );
   }
+  if (state.declined && !state.receipt) {
+    return <DeclinedBanner state={state} onNavigateTab={onNavigateTab} currentTab={currentTab} />;
+  }
   if (kind === "escalate" || state.escalation_reason) {
     return (
       <EscalateBanner
@@ -58,6 +61,78 @@ export default function ApprovalBar({
       onResumed={onResumed}
       fxRoute={fxRoute ?? null}
     />
+  );
+}
+
+/* The approver declined: nothing was paid, and the deal says so instead of offering approval again. */
+function DeclinedBanner({
+  state,
+  onNavigateTab,
+  currentTab,
+}: {
+  state: DealState;
+  onNavigateTab?: (tab: string) => void;
+  currentTab?: string;
+}) {
+  return (
+    <div
+      className="clean-status-banner"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 16,
+        padding: "12px 18px",
+        background: "rgba(245, 158, 11, 0.08)",
+        border: "1px solid rgba(245, 158, 11, 0.35)",
+        borderRadius: "var(--radius, 8px)",
+        marginBottom: 16,
+        flexWrap: "wrap",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 260, flex: 1 }}>
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: "50%",
+            background: "rgba(245, 158, 11, 0.15)",
+            color: "var(--status-warn, #f59e0b)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <X size={18} />
+        </div>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontWeight: 700, fontSize: 13, color: "var(--status-warn, #f59e0b)" }}>
+              You declined this deal
+            </span>
+            <span className="chip chip-sev-warn" style={{ fontSize: 10 }}>NO PAYMENT MADE</span>
+          </div>
+          <p style={{ margin: "2px 0 0", fontSize: 13, color: "#cbd5e1" }}>
+            The review stopped at your decision and nothing was paid.
+          </p>
+          {state.decline_note && (
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#94a3b8" }}>
+              <strong style={{ color: "#cbd5e1" }}>Your note:</strong> {state.decline_note}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {currentTab !== "audit" && <button
+        className="btn btn-secondary"
+        onClick={() => onNavigateTab?.("audit")}
+        style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}
+      >
+        <span>View review history</span>
+        <ArrowRight size={14} />
+      </button>}
+    </div>
   );
 }
 
