@@ -43,7 +43,13 @@ export default function ApprovalBar({
     );
   }
   if (kind === "escalate" || state.escalation_reason) {
-    return <EscalateBanner onNavigateTab={onNavigateTab} currentTab={currentTab} />;
+    return (
+      <EscalateBanner
+        onNavigateTab={onNavigateTab}
+        currentTab={currentTab}
+        reason={state.escalation_reason}
+      />
+    );
   }
   return (
     <ApprovalActionBanner
@@ -145,9 +151,12 @@ function AwaitDocBanner({
 function EscalateBanner({
   onNavigateTab,
   currentTab,
+  reason,
 }: {
   onNavigateTab?: (tab: string) => void;
   currentTab?: string;
+  /** Why the server put the deal on hold (state.escalation_reason). */
+  reason?: string | null;
 }) {
   return (
     <div
@@ -191,6 +200,11 @@ function EscalateBanner({
           <p style={{ margin: "2px 0 0", fontSize: 13, color: "#cbd5e1" }}>
             A person needs to review this deal before it can continue. Check the supporting documents and review history for next steps.
           </p>
+          {reason && (
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#94a3b8" }}>
+              <strong style={{ color: "#cbd5e1" }}>Reason:</strong> {reason}
+            </p>
+          )}
         </div>
       </div>
 

@@ -335,6 +335,7 @@ class DealRunner:
                 base_url=self.settings.litellm_base_url,
                 api_key=self.settings.litellm_virtual_key,
                 timeout_s=self.settings.litellm_timeout_s,
+                vision_timeout_s=self.settings.litellm_vision_timeout_s,
                 _acreate=self.llm._acreate,
                 budget=budget,
             )
@@ -342,6 +343,7 @@ class DealRunner:
             budget=budget,
             audit=self.audit,
             llm=llm,
+            vision_enabled=bool(self.settings.llm_vision_model.strip()),
             docs=self.docs,
             anchor=self.anchor,
             redis=self.idempotency,

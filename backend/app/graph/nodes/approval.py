@@ -229,6 +229,17 @@ async def escalate(state: DealState, ctx: NodeContext) -> dict[str, Any]:
     if state.fatal_error:
         return {"escalation_reason": state.fatal_error}
     if state.blocked_by_injection():
+        from app.graph.nodes.injection_screen import UNSCREENABLE_DETAIL
+
+        blocking = [f for f in state.injection_flags if f.severity == "block"]
+        if all(f.detail == UNSCREENABLE_DETAIL for f in blocking):
+            # not an attack found, a document the screen cannot read: say so
+            return {
+                "escalation_reason": (
+                    "an image document cannot be screened for hidden instructions; "
+                    "a person must review it"
+                )
+            }
         return {"escalation_reason": "prompt injection detected in documents"}
     blocks = [f.summary for f in state.findings if f.severity == "block" and f.status == "open"]
     if blocks:

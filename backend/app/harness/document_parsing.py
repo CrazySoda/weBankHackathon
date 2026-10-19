@@ -40,6 +40,20 @@ def parse_pdf_spans(pdf_bytes: bytes) -> list[TextSpan]:
         doc.close()
 
 
+def render_pdf_pages(pdf_bytes: bytes, max_pages: int = 3, zoom: float = 2.0) -> list[bytes]:
+    """PNG images of the first pages, for a vision model (scanned PDFs have no text layer)."""
+    import fitz  # PyMuPDF
+
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        return [
+            page.get_pixmap(matrix=fitz.Matrix(zoom, zoom)).tobytes("png")
+            for page in list(doc)[:max_pages]
+        ]
+    finally:
+        doc.close()
+
+
 def full_text(spans: list[TextSpan]) -> str:
     return "\n".join(s.text for s in spans)
 

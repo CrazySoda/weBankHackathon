@@ -16,6 +16,12 @@ from app.harness.document_parsing import TextSpan, find_hidden_text
 from app.harness.hooks import NodeContext
 
 # instruction-like phrases (English + common CN translations)
+# Text hidden in an image is invisible to a text screen, and a vision model reads it. Such a
+# document is blocked, not passed: the screen fails closed. escalate() words its reason from this.
+UNSCREENABLE_DETAIL = (
+    "image-only document cannot be inspected by the configured text screening path"
+)
+
 INSTRUCTION_PATTERNS = [
     r"ignore (all |any |the )?(previous|prior|above) (instructions|prompts|rules)",
     r"disregard (all |the )?(previous|prior|above)",
@@ -131,10 +137,7 @@ async def injection_screen(state: DealState, ctx: NodeContext) -> dict[str, Any]
                     kind="classifier_hit",
                     severity="block",
                     doc_id=doc.doc_id,
-                    detail=(
-                        "image-only document cannot be inspected by "
-                        "the configured text screening path"
-                    ),
+                    detail=UNSCREENABLE_DETAIL,
                 )
             )
             continue

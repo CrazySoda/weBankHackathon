@@ -75,7 +75,17 @@ LEGACY_KEY_ENV: dict[str, str] = {
     "dashscope": "DASHSCOPE_API_KEY",
 }
 
-MAX_TOKENS = {"reasoner": 4096, "fast": 2048}
+MAX_TOKENS = {"reasoner": 4096, "fast": 2048, "vision": 6000}
+
+# A vision model reads a whole page image and returns every field: far slower than the text
+# aliases (31 to 172 s measured on a free model), so it gets its own timeout.
+VISION_TIMEOUT_S = 180
+
+
+def resolve_vision(env: Mapping[str, str]) -> str:
+    """LLM_VISION_MODEL (LiteLLM model string, must accept images), or '' = no vision alias.
+    There is no default: a text model cannot read an image, so nothing is guessed."""
+    return (env.get("LLM_VISION_MODEL") or "").strip()
 
 
 def split_keys(raw: str | None) -> list[str]:
@@ -115,7 +125,7 @@ def _deployment(alias: str, model: str, key_ref: str | None, index: int) -> list
         lines.append(f"      api_key: os.environ/{key_ref}")
     lines += [
         f"      max_tokens: {MAX_TOKENS[alias]}",
-        "      timeout: 30",
+        f"      timeout: {VISION_TIMEOUT_S if alias == 'vision' else 30}",
     ]
     if index > 0:
         # comments make the rotation legible in the rendered file
@@ -134,7 +144,13 @@ def render(env: Mapping[str, str]) -> str:
     ]
 
     n = 0
-    for alias, model in (("reasoner", reasoner), ("fast", fast)):
+    aliases = [("reasoner", reasoner), ("fast", fast)]
+    vision = resolve_vision(env)
+    if vision:
+        # no fallback entry points at or from this alias: a text model must never be
+        # handed an image
+        aliases.append(("vision", vision))
+    for alias, model in aliases:
         if provider == "ollama":
             out += _deployment(alias, model, None, 0)
             n += 1

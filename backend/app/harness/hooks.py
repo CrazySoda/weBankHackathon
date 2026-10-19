@@ -46,6 +46,7 @@ class NodeContext:
     redis: Any = None  # redis client (idempotency keys)
     anchor: Any = None  # AnchorClient
     approval_verifier: Any = None
+    vision_enabled: bool = False  # a `vision` alias exists; image documents can be read
     prompts_dir: Any = None
     skills_dir: Any = None
 

@@ -71,7 +71,9 @@ def store_key(path: Path, key: str) -> None:
 def generate_key(base_url: str, master_key: str, max_budget: float, duration: str) -> str:
     payload = json.dumps(
         {
-            "models": ["reasoner", "fast"],
+            # `vision` only exists in the proxy when LLM_VISION_MODEL is set; allowing the
+            # name here is harmless otherwise and means the key need not be re-issued later
+            "models": ["reasoner", "fast", "vision"],
             "max_budget": max_budget,
             "budget_duration": duration,
         }
