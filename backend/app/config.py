@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     litellm_base_url: str = "http://localhost:4000"
     litellm_virtual_key: str  # backend key with spend cap; no default = fail fast
     litellm_timeout_s: float = 35.0
+    litellm_vision_timeout_s: float = 180.0
+    # A vision-capable model (LiteLLM string). Empty = image documents stay unsupported;
+    # it is the same variable the proxy renders its `vision` alias from.
+    llm_vision_model: str = ""
 
     # --- Auth / crypto ---
     approval_signing_key: str = ""  # deprecated; signers must keep private keys client-side

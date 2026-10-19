@@ -47,7 +47,13 @@ def primary_models(alias: str) -> frozenset[str] | None:
     bare forms accepted, since proxies report the model id differently).
     """
     models: set[str] = set(DEFAULT_PRIMARY_DEPLOYMENTS.get(alias, frozenset()))
-    env_name = "LLM_REASONER_MODEL" if alias.startswith("reasoner") else "LLM_FAST_MODEL"
+    env_name = (
+        "LLM_VISION_MODEL"
+        if alias == "vision"
+        else "LLM_REASONER_MODEL"
+        if alias.startswith("reasoner")
+        else "LLM_FAST_MODEL"
+    )
     override = os.environ.get(env_name, "").strip()
     if override:
         models.add(override)
@@ -93,6 +99,7 @@ class LLMClient:
     base_url: str
     api_key: str
     timeout_s: float = 35.0
+    vision_timeout_s: float = 180.0  # a page image is read far more slowly than text
     _acreate: Any = None  # injected transport; defaults to AsyncOpenAI
     usage_log: list[ModelUse] = field(default_factory=list)
     budget: DealBudget | None = None
@@ -113,7 +120,7 @@ class LLMClient:
         *,
         alias: str,
         system: str,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],  # content may be a list of text/image_url parts
         output_model: type[T],
         node: str = "",
         prompt_version: str = "",
@@ -123,7 +130,7 @@ class LLMClient:
     ) -> CompletionResult[T]:
         """One schema-constrained completion with a single repair retry."""
         schema = output_model.model_json_schema()
-        convo: list[dict[str, str]] = [
+        convo: list[dict[str, Any]] = [
             {"role": "system", "content": system},
             *messages,
         ]
@@ -134,6 +141,8 @@ class LLMClient:
                 "temperature": temperature,
                 "max_tokens": max_tokens,
             }
+            if alias == "vision":
+                kwargs["timeout"] = self.vision_timeout_s
             if attempt == 1:
                 kwargs["response_format"] = {
                     "type": "json_schema",

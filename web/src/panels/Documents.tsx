@@ -72,11 +72,18 @@ export default function Documents({ state, onAddDocuments }: { state: DealState;
               {doc.low_confidence && (
                 <span className="chip chip-sev-warn">
                   <AlertTriangle size={12} aria-hidden="true" />
-                  <span>low confidence</span>
+                  <span>{doc.extraction_model.startsWith("vision:") ? "read from an image" : "low confidence"}</span>
                 </span>
               )}
               <SyntheticChip />
             </div>
+
+            {doc.extraction_model.startsWith("vision:") && (
+              <div role="note" className="faint" style={{ fontSize: 12, marginBottom: 12, color: "var(--status-warn, #f59e0b)" }}>
+                A vision model read these values from an image. They are not checked against any document
+                text, so a person must confirm them.
+              </div>
+            )}
 
             {doc.fields.length === 0 ? (
               <div className="empty">No fields extracted from this document.</div>
@@ -93,7 +100,12 @@ export default function Documents({ state, onAddDocuments }: { state: DealState;
                   </thead>
                   <tbody>
                     {doc.fields.map((f, i) => (
-                      <FieldRow key={i} field={f} currency={String(doc.fields.find((candidate) => candidate.name === "currency")?.value ?? "USD")} />
+                      <FieldRow
+                        key={i}
+                        field={f}
+                        fromImage={doc.extraction_model.startsWith("vision:")}
+                        currency={String(doc.fields.find((candidate) => candidate.name === "currency")?.value ?? "USD")}
+                      />
                     ))}
                   </tbody>
                 </table>
@@ -132,7 +144,16 @@ function filenameFor(state: DealState, docId: string): string {
   return state.documents.find((d) => d.doc_id === docId)?.filename ?? docId;
 }
 
-function FieldRow({ field, currency }: { field: ExtractedField; currency: string }) {
+function FieldRow({
+  field,
+  currency,
+  fromImage = false,
+}: {
+  field: ExtractedField;
+  currency: string;
+  /** Read from an image: the model's own confidence is not trusted, so none is shown. */
+  fromImage?: boolean;
+}) {
   const pct = Math.round(field.confidence * 100);
   const color = confidenceColor(field.confidence);
   const value = formatFieldValue(field, currency);
@@ -146,6 +167,9 @@ function FieldRow({ field, currency }: { field: ExtractedField; currency: string
         {value}
       </td>
       <td style={{ padding: "8px 10px" }}>
+        {fromImage ? (
+          <span className="faint" style={{ fontSize: 12 }}>Unverified</span>
+        ) : (
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div
             style={{
@@ -179,6 +203,7 @@ function FieldRow({ field, currency }: { field: ExtractedField; currency: string
             {pct}%
           </span>
         </div>
+        )}
       </td>
       <td style={{ padding: "8px 10px" }}>
         {field.source?.snippet ? (
