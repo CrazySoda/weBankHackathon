@@ -77,6 +77,8 @@ export default function App() {
   const [uploading, setUploading] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [dealSearch, setDealSearch] = useState("");
+  // The FX route the approver picked on the Payment options tab; signed with the approval.
+  const [fxRoute, setFxRoute] = useState<string | null>(null);
 
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [streaming, setStreaming] = useState(false);
@@ -106,6 +108,20 @@ export default function App() {
   const state = dealQuery.data?.state ?? null;
   const running = dealQuery.data?.running ?? false;
 
+  // Progress comes from this tab's live events; after a reload or re-opening a deal there are
+  // none, so it is rebuilt from the saved audit trail (which records every node).
+  const progressEvents: StreamEvent[] =
+    events.length > 0
+      ? events
+      : (auditQuery.data?.events ?? []).flatMap((e): StreamEvent[] => {
+          const node = (e.payload as { node?: string } | undefined)?.node;
+          if (!node) return [];
+          if (e.kind === "node_started") return [{ type: "node_started", node, ts: e.ts }];
+          if (e.kind === "node_finished") return [{ type: "node_finished", node, ts: e.ts }];
+          if (e.kind === "node_interrupted") return [{ type: "interrupt", node, ts: e.ts }];
+          return [];
+        });
+
   const stopStream = useCallback(() => {
     if (esRef.current) {
       esRef.current.close();
@@ -116,10 +132,12 @@ export default function App() {
   }, []);
 
   /** Open the SSE stream after run/resume and drive the pipeline visualizer */
+  // keepEvents: a resume continues the same review, so its progress must build on the earlier
+  // run's events instead of starting from zero (which made the step count drop after approval).
   const openStream = useCallback(
-    (dealId: string) => {
+    (dealId: string, keepEvents = false) => {
       stopStream();
-      setEvents([]);
+      if (!keepEvents) setEvents([]);
       setInterrupt(null);
       setRunError(null);
       setStreaming(true);
@@ -258,6 +276,16 @@ export default function App() {
     }
   };
 
+  // Back to the workspace (welcome) screen without deleting anything: no deal selected.
+  function goToWorkspace() {
+    stopStream();
+    setSelected(null);
+    setEvents([]);
+    setInterrupt(null);
+    setRunError(null);
+    setTab("overview");
+  }
+
   function selectDeal(id: string) {
     stopStream();
     setSelected(id);
@@ -325,8 +353,31 @@ export default function App() {
     }
   };
 
+  // A choice belongs to one deal: drop it when another deal is opened.
+  useEffect(() => {
+    setFxRoute(null);
+  }, [selected]);
+
+  // A deal parked at approval is recognisable from its saved state, so the approval bar and
+  // the route choice survive a page reload or re-opening the deal (the live interrupt event
+  // is only seen by the tab that streamed the run).
+  const parkedAtApproval =
+    state !== null &&
+    !running &&
+    state.policy?.decision === "allow" &&
+    state.fx_options.length > 0 &&
+    !state.approval &&
+    !state.receipt &&
+    !state.fatal_error &&
+    !state.escalation_reason &&
+    !state.amendment_draft &&
+    !state.findings.some((f) => f.severity === "block" && f.status === "open");
+  const awaitingApproval = interrupt?.node === "human_approval" || parkedAtApproval;
+
   const showApprovalBar =
-    (interrupt !== null || (state && (state.amendment_draft || state.escalation_reason))) &&
+    (interrupt !== null ||
+      parkedAtApproval ||
+      (state && (state.amendment_draft || state.escalation_reason))) &&
     !streaming &&
     state !== null &&
     !state.receipt;
@@ -344,7 +395,15 @@ export default function App() {
       {/* Sleek, Uncluttered Sidebar */}
       <aside className="sidebar">
         <div className="brand">
-          <BrandLogo />
+          <button
+            type="button"
+            onClick={goToWorkspace}
+            title="Back to workspace"
+            aria-label="ClearTrade — back to workspace"
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", font: "inherit", textAlign: "left" }}
+          >
+            <BrandLogo />
+          </button>
           <div className="brand-sub">Trade, made clearer</div>
         </div>
 
@@ -533,7 +592,7 @@ export default function App() {
           <button
             className="btn btn-primary"
             style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-            disabled={!selected || running || streaming}
+            disabled={!selected || running || streaming || awaitingApproval || !!state?.receipt}
             onClick={() => selected && runDeal.mutate(selected)}
           >
             {streaming || running ? (
@@ -609,9 +668,9 @@ export default function App() {
           ) : (
             <>
               {/* Sleek 5-Step Ribbon Visualizer (collapsed by default) */}
-              {(streaming || events.length > 0 || running) && (
+              {(streaming || progressEvents.length > 0 || running) && (
                 <PipelineVisualizer
-                  events={events}
+                  events={progressEvents}
                   running={streaming || running}
                   reconnecting={reconnecting}
                 />
@@ -628,10 +687,11 @@ export default function App() {
                   }
                   onResumed={() => {
                     setInterrupt(null);
-                    openStream(selected);
+                    openStream(selected, true);
                   }}
                   onNavigateTab={(t) => setTab(t as TabId)}
                   currentTab={tab}
+                  fxRoute={fxRoute}
                 />
               )}
 
@@ -666,11 +726,11 @@ export default function App() {
                           action: "corrected_document",
                           note: `Corrected document attached via Findings panel: ${file.name}`,
                         });
-                        openStream(selected);
+                        openStream(selected, true);
                       }}
                     />
                   )}
-                  {tab === "fx" && <Fx state={state} onRunReview={() => selected && runDeal.mutate(selected)} onAddDocuments={() => setIsUploadModalOpen(true)} />}
+                  {tab === "fx" && <Fx state={state} selectedRoute={fxRoute} onSelectRoute={showApprovalBar && awaitingApproval ? setFxRoute : undefined} onRunReview={() => selected && runDeal.mutate(selected)} onAddDocuments={() => setIsUploadModalOpen(true)} />}
                   {tab === "cash" && <CashFlow state={state} onRunReview={() => selected && runDeal.mutate(selected)} onAddDocuments={() => setIsUploadModalOpen(true)} />}
                   {tab === "documents" && <Documents state={state} onAddDocuments={() => setIsUploadModalOpen(true)} />}
                   {tab === "audit" && <Audit audit={auditQuery.data} state={state} />}

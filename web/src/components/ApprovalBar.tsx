@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { DealState, InterruptPayload } from "../api";
 import { api, formatMoney } from "../api";
-import { findPayee, findApplicant, totalAmountOf, bestRoute } from "../panels/Overview";
+import { findPayee, findApplicant, totalAmountOf, bestRoute, chosenRoute } from "../panels/Overview";
 import {
   AlertTriangle,
   Lock,
@@ -17,6 +17,8 @@ interface ApprovalBarProps {
   onResumed: () => void;
   onNavigateTab?: (tab: string) => void;
   currentTab?: string;
+  /** FX route the approver picked on the Payment options tab (null = the suggested one). */
+  fxRoute?: string | null;
 }
 
 export default function ApprovalBar({
@@ -25,6 +27,7 @@ export default function ApprovalBar({
   onResumed,
   onNavigateTab,
   currentTab,
+  fxRoute,
 }: ApprovalBarProps) {
   const kind =
     payload?.kind ??
@@ -42,7 +45,14 @@ export default function ApprovalBar({
   if (kind === "escalate" || state.escalation_reason) {
     return <EscalateBanner onNavigateTab={onNavigateTab} currentTab={currentTab} />;
   }
-  return <ApprovalActionBanner state={state} payload={payload} onResumed={onResumed} />;
+  return (
+    <ApprovalActionBanner
+      state={state}
+      payload={payload}
+      onResumed={onResumed}
+      fxRoute={fxRoute ?? null}
+    />
+  );
 }
 
 function inferKind(state: DealState): string {
@@ -204,10 +214,12 @@ function ApprovalActionBanner({
   state,
   payload,
   onResumed,
+  fxRoute,
 }: {
   state: DealState;
   payload: InterruptPayload | null;
   onResumed: () => void;
+  fxRoute: string | null;
 }) {
   const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -225,6 +237,9 @@ function ApprovalActionBanner({
     : approvalAmount === null ? null : totalAmountOf(state);
   const paymentDetailsValid = !!applicant && !!payee && amountMinor !== null && amountMinor > 0;
   const best = bestRoute(state);
+  const route = chosenRoute(state, fxRoute);
+  // Only an explicit pick is sent; the backend signs the same default otherwise.
+  const pickedRoute = route && best && route.route_id !== best.route_id ? route.route_id : undefined;
 
   const openBlocks = state.findings.filter(
     (f) => f.severity === "block" && f.status === "open",
@@ -236,10 +251,11 @@ function ApprovalActionBanner({
     setError(null);
     setShowConfirmModal(false);
     try {
-      const res = await api.signDemo(state.deal_id);
+      const res = await api.signDemo(state.deal_id, pickedRoute);
       await api.resume(state.deal_id, {
         action: "approve",
         approval: res.approval,
+        fx_route: pickedRoute,
         note: note || "Approved via DEMO signer (Ed25519 signature over canonical deal hash)",
       });
       onResumed();
@@ -310,10 +326,16 @@ function ApprovalActionBanner({
             <p style={{ margin: "2px 0 0", fontSize: 13, color: "#e2e8f0" }}>
               Paying to: <strong>{payee ?? "Not identified"}</strong> · Amount:{" "}
               <strong>{amountMinor !== null && amountMinor > 0 ? formatMoney(amountMinor, "USD") : "Unavailable"}</strong>
-              {best && (
+              {route && (
                 <span className="faint" style={{ marginLeft: 8 }}>
-                  (Suggested route: {best.provider})
+                  ({pickedRoute ? "Selected" : "Suggested"} route: {route.provider})
                 </span>
+              )}
+              {route && (
+                <>
+                  {" "}· Est. proceeds:{" "}
+                  <strong>{formatMoney(route.net_minor, route.buy_currency)}</strong>
+                </>
               )}
             </p>
             {!paymentDetailsValid && (
@@ -415,6 +437,17 @@ function ApprovalActionBanner({
                 <dd style={{ fontWeight: 600, color: "var(--status-pass, #10b981)" }}>
                   {amountMinor !== null && amountMinor > 0 ? formatMoney(amountMinor, "USD") : "Unavailable"}
                 </dd>
+                {route && (
+                  <>
+                    <dt>Payment route</dt>
+                    <dd>{route.provider}</dd>
+                    <dt>Estimated proceeds</dt>
+                    <dd>
+                      {formatMoney(route.net_minor, route.buy_currency)}{" "}
+                      <span className="faint">(sample quote after fees; the payment above is not changed)</span>
+                    </dd>
+                  </>
+                )}
               </dl>
             </div>
 

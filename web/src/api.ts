@@ -187,6 +187,7 @@ export interface DealState {
   check_plan: CheckPlan | null;
   findings: Finding[];
   fx_options: FxOption[];
+  selected_fx_route?: string | null;
   cash_projection: CashProjectionState | null;
   verified: Finding[];
   amendment_draft: string | null;
@@ -350,13 +351,20 @@ export const api = {
   getDeal: (dealId: string) =>
     request<DealDetail>(`/deals/${encodeURIComponent(dealId)}`),
 
-  signDemo: (dealId: string) =>
+  // fxRoute: the route the approver chose; it is part of what gets signed.
+  signDemo: (dealId: string, fxRoute?: string) =>
     request<{ approval: SignedApproval; demo_shortcut: boolean; notice: string } & SyntheticBadge>(
       `/deals/${encodeURIComponent(dealId)}/sign_demo`, {
       method: "POST",
+      ...(fxRoute
+        ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fx_route: fxRoute }) }
+        : {}),
     }),
 
-  resume: (dealId: string, body: { action: string; approval?: SignedApproval; note?: string }) =>
+  resume: (
+    dealId: string,
+    body: { action: string; approval?: SignedApproval; note?: string; fx_route?: string },
+  ) =>
     request<{ resumed: boolean } & SyntheticBadge>(`/deals/${encodeURIComponent(dealId)}/resume`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

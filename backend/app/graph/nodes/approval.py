@@ -38,6 +38,7 @@ class PayoutInput(BaseModel):
     tenant_id: str
     nonce: str
     amount_minor: int = Field(gt=0, strict=True)
+    fx_route: str | None = None  # the signed route; the payout request names it
 
 
 class PayoutOutput(BaseModel):
@@ -117,6 +118,16 @@ async def human_approval(state: DealState, ctx: NodeContext) -> dict[str, Any]:
 
     from app.graph.state import SignedApproval
 
+    # The approver may have picked a route other than the recommended one. Apply it before
+    # verifying so the signature is checked against the render that included the choice.
+    route_id = (resume or {}).get("fx_route")
+    update: dict[str, Any] = {}
+    if route_id is not None:
+        if route_id not in {o.route_id for o in state.fx_options}:
+            return {"fatal_error": f"approval rejected: unknown FX route {route_id!r}"}
+        state = state.model_copy(update={"selected_fx_route": route_id})
+        update["selected_fx_route"] = route_id
+
     approval = SignedApproval.model_validate(approval_data)
     try:
         if ctx.approval_verifier is None:
@@ -124,7 +135,7 @@ async def human_approval(state: DealState, ctx: NodeContext) -> dict[str, Any]:
         verify_approval(approval, state.deal_id, approval_render(state), ctx.approval_verifier)
     except ApprovalError as e:
         return {"fatal_error": f"approval rejected: {e}"}
-    return {"approval": approval}
+    return {"approval": approval, **update}
 
 
 def _amount(state: DealState) -> int | None:
@@ -191,6 +202,7 @@ async def execute(state: DealState, ctx: NodeContext) -> dict[str, Any]:
             tenant_id=state.tenant_id,
             nonce=state.approval.nonce,
             amount_minor=amount_minor,
+            fx_route=route.route_id if (route := state.chosen_fx_route()) else None,
         ),
     )
     if not isinstance(payout_result, PayoutOutput) or not isinstance(anchor, AnchorOutput):
@@ -239,6 +251,12 @@ async def report(state: DealState, ctx: NodeContext) -> dict[str, Any]:
             f"Best synthetic FX route: {best.route_id}, net {best.net_minor} minor "
             f"{best.buy_currency}."
         )
+        chosen = state.chosen_fx_route()
+        if chosen is not None and chosen.route_id != best.route_id:
+            parts.append(
+                f"Approver selected FX route: {chosen.route_id}, net {chosen.net_minor} minor "
+                f"{chosen.buy_currency}."
+            )
     if state.cash_projection is not None:
         cash = state.cash_projection
         parts.append(

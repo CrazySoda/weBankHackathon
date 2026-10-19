@@ -92,6 +92,9 @@ def approval_render(state: DealState) -> dict[str, Any]:
         # a flag added or removed after signing invalidates the approval.
         "injection_flags": [f.model_dump(mode="json") for f in state.injection_flags],
         "fx_options": [o.model_dump(mode="json") for o in state.fx_options],
+        # DECISION: the FX route the approver picked is part of the signed render, so
+        # changing it after signing invalidates the approval (DECISIONS #26).
+        "fx_route": (route.route_id if (route := state.chosen_fx_route()) else None),
         "finance_offer": (
             state.finance_offer.model_dump(mode="json") if state.finance_offer else None
         ),

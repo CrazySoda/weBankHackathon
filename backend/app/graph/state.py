@@ -352,6 +352,8 @@ class DealState(BaseModel):
     check_plan: CheckPlan | None = None
     findings: Annotated[list[Finding], merge_by_check_id] = []
     fx_options: list[FxOption] = []
+    # the route the approver chose (set when they approve); None = the best-net default
+    selected_fx_route: str | None = None
     cash_projection: CashProjectionState | None = None
     verified: list[Finding] = []
     amendment_draft: str | None = None
@@ -391,6 +393,15 @@ class DealState(BaseModel):
         for doc in sorted(self.extracted, key=lambda d: order.get(d.doc_id, -1)):
             latest[doc.kind] = doc
         return sorted(latest.values(), key=lambda d: order.get(d.doc_id, -1))
+
+    def chosen_fx_route(self) -> FxOption | None:
+        """The route in effect: the approver's selection, else the best net proceeds.
+        An unknown selection yields None so nothing silently falls back past a bad id."""
+        if not self.fx_options:
+            return None
+        if self.selected_fx_route is not None:
+            return next((o for o in self.fx_options if o.route_id == self.selected_fx_route), None)
+        return max(self.fx_options, key=lambda o: o.net_minor)
 
     def blocked_by_injection(self) -> bool:
         return any(f.severity == "block" for f in self.injection_flags)
