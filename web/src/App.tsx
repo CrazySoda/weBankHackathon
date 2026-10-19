@@ -172,7 +172,8 @@ export default function App() {
         }
         if (e.type === "done" || e.type === "error") {
           if (e.type === "error") {
-            setRunError("We couldn’t finish the review. Please try again.");
+            const detail = typeof (parsed as any)?.detail === "string" ? (parsed as any).detail : null;
+            setRunError(detail ? `Review stopped: ${detail}` : "We couldn’t finish the review. Please try again.");
           }
           stopStream();
           void queryClient.invalidateQueries({ queryKey: ["deal", dealId] });
@@ -195,8 +196,9 @@ export default function App() {
       es.onerror = (e) => {
         if ("data" in e && typeof (e as MessageEvent).data === "string") {
           try {
-            JSON.parse((e as MessageEvent).data);
-            setRunError("We couldn’t finish the review. Please try again.");
+            const errData = JSON.parse((e as MessageEvent).data);
+            const detail = typeof errData?.detail === "string" ? errData.detail : null;
+            setRunError(detail ? `Review stopped: ${detail}` : "We couldn’t finish the review. Please try again.");
           } catch {
             setRunError("We couldn’t finish the review. Please try again.");
           }
@@ -379,7 +381,7 @@ export default function App() {
   const showApprovalBar =
     (interrupt !== null ||
       parkedAtApproval ||
-      (state && (state.amendment_draft || state.escalation_reason || state.declined))) &&
+      (state && (state.amendment_draft || state.escalation_reason || state.declined || state.fatal_error))) &&
     !streaming &&
     state !== null &&
     !state.receipt;
@@ -670,8 +672,14 @@ export default function App() {
           ) : dealQuery.isError ? (
             <ErrorState
               title="Could Not Load Deal"
-              message={String(dealQuery.error)}
+              message={
+                String(dealQuery.error).includes("unknown deal")
+                  ? "This deal record is no longer available on the server (for example, after a server restart). You can start a fresh deal."
+                  : String(dealQuery.error)
+              }
               onRetry={() => dealQuery.refetch()}
+              actionLabel="Start a new deal"
+              onAction={() => createDeal.mutate()}
             />
           ) : (
             <>

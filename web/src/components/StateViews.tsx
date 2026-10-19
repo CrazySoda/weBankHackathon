@@ -36,10 +36,14 @@ export function ErrorState({
   title = "Error Loading Data",
   message = "Failed to communicate with the ClearTrade backend service.",
   onRetry,
+  actionLabel,
+  onAction,
 }: {
   title?: string;
   message?: string;
   onRetry?: () => void;
+  actionLabel?: string;
+  onAction?: () => void;
 }) {
   return (
     <div className="state-error-card" role="alert">
@@ -52,28 +56,45 @@ export function ErrorState({
           <p style={{ margin: 0, fontSize: 13, color: "var(--text-dim, #94a3b8)" }}>
             {message}
           </p>
-          {onRetry && (
-            <button
-              onClick={onRetry}
-              className="retry-btn"
-              style={{
-                marginTop: 10,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 12px",
-                background: "var(--bg-card, #161e29)",
-                border: "1px solid var(--border-subtle, #232d3b)",
-                borderRadius: "var(--radius-sm, 6px)",
-                color: "var(--text, #e6ebf2)",
-                fontSize: 12,
-                cursor: "pointer",
-              }}
-            >
-              <RefreshCw size={13} />
-              <span>Retry</span>
-            </button>
-          )}
+          <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            {onRetry && (
+              <button
+                onClick={onRetry}
+                className="retry-btn"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 12px",
+                  background: "var(--bg-card, #161e29)",
+                  border: "1px solid var(--border-subtle, #232d3b)",
+                  borderRadius: "var(--radius-sm, 6px)",
+                  color: "var(--text, #e6ebf2)",
+                  fontSize: 12,
+                  cursor: "pointer",
+                }}
+              >
+                <RefreshCw size={13} />
+                <span>Retry</span>
+              </button>
+            )}
+            {actionLabel && onAction && (
+              <button
+                onClick={onAction}
+                className="btn btn-primary"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 14px",
+                  fontSize: 12,
+                  cursor: "pointer",
+                }}
+              >
+                <span>{actionLabel}</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
