@@ -298,6 +298,11 @@ class TestApprovalRejected:
         )
         assert final.get("receipt") is None
         assert final.get("escalation_reason") is None  # rejection is not an escalation
+        # the decline is recorded on the deal so the console can show it, and the report says so
+        assert final["declined"] is True
+        assert final["decline_note"] == "rejected by owner"
+        assert "Declined by the approver. No payment was made." in final["report_summary"]
+        assert "rejected by owner" in final["report_summary"]
 
 
 def _with_schedule(presentation_date: str):

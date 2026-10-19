@@ -4,6 +4,7 @@ import { findApplicant, findGoods, findPayee, totalAmountOf } from "../panels/Ov
 import {
   ShieldAlert,
   CheckCircle2,
+  XCircle,
   AlertTriangle,
   ArrowRight,
   Play,
@@ -34,9 +35,10 @@ export default function ExecutiveDealHeader({
   );
   const isExecuted = Boolean(state.receipt);
   const isEscalated = Boolean(state.escalation_reason);
+  const isDeclined = Boolean(state.declined) && !isExecuted;
   const hasDiscrepancy = openBlocks.length > 0 || Boolean(state.amendment_draft);
   const isReadyForApproval =
-    !isExecuted && !isEscalated && !hasDiscrepancy && state.findings.length > 0;
+    !isExecuted && !isDeclined && !isEscalated && !hasDiscrepancy && state.findings.length > 0;
   const isUnrun = state.extracted.length === 0 && !running;
 
   return (
@@ -150,6 +152,16 @@ export default function ExecutiveDealHeader({
             >
               <CheckCircle2 size={14} />
               <span>Executed & Settled (Sandbox)</span>
+            </div>
+          )}
+
+          {isDeclined && (
+            <div
+              className="chip chip-sev-warn"
+              style={{ fontSize: 12, padding: "5px 12px", fontWeight: 700 }}
+            >
+              <XCircle size={14} />
+              <span>Declined, no payment made</span>
             </div>
           )}
 

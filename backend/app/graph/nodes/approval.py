@@ -114,7 +114,11 @@ async def human_approval(state: DealState, ctx: NodeContext) -> dict[str, Any]:
     # resume payload: {"approval": SignedApproval | None, "note": str}
     approval_data = (resume or {}).get("approval")
     if approval_data is None:
-        return {"approval": None}
+        return {
+            "approval": None,
+            "declined": True,
+            "decline_note": str((resume or {}).get("note", "")),
+        }
 
     from app.graph.state import SignedApproval
 
@@ -284,6 +288,9 @@ async def report(state: DealState, ctx: NodeContext) -> dict[str, Any]:
         parts.append(f"Policy decision: {state.policy.decision}.")
     if state.receipt is not None:
         parts.append(f"Sandbox payout receipt: {state.receipt.receipt_id}.")
+    elif state.declined:
+        note = f" Note: {state.decline_note}" if state.decline_note else ""
+        parts.append(f"Declined by the approver. No payment was made.{note}")
     elif state.escalation_reason:
         parts.append(f"Escalated: {state.escalation_reason}")
     return {"report_summary": "\n".join(parts)}
