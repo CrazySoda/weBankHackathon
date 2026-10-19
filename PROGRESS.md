@@ -120,9 +120,9 @@ Updated: 2026-10-17 (pre-submission fixes and Windows-side quality gates re-veri
 
 
 1. **Screen Recording for Competition Video**:
-   Follow [`docs/DEMO_VIDEO_SCRIPT.md`](file:///d:/Projects/weBankHackathon/docs/DEMO_VIDEO_SCRIPT.md) to record the 5-minute video covering the Hero Discrepancy, UCP 600 amendment drafting, VAT calculation, Passkey approval, and live adversarial injection stress test.
+   `docs/DEMO_VIDEO_SCRIPT.md` was withdrawn on 2026-10-19 (its walkthrough claimed features the code does not have — SWIFT MT707 sending, passkey approval, FISCO BCOS anchoring, "90 seconds"). Record the competition video from the final deck instead: the four one-click demo scenarios (`clean`, `discrepancy`, `mismatch`, `injection`) and the hero correct-and-resume flow, keeping every spoken claim to what the console actually shows.
 2. **Pitch Deck Presentation Deck Styled**:
-   Completed 10-minute, 12-slide interactive presentation deck in [`docs/presentation.html`](file:///d:/Projects/weBankHackathon/docs/presentation.html) and [`web/public/deck.html`](file:///d:/Projects/weBankHackathon/web/public/deck.html) with 10-min presenter timer, speaker script drawer (<kbd>S</kbd>), fullscreen (<kbd>F</kbd>), and Print-to-PDF support.
+   `docs/presentation.html` and `web/public/deck.html` (12 slides) were superseded and withdrawn on 2026-10-19 for the same reason. The submission deck is the external 14-slide PowerPoint; it is portal collateral, not a repository file.
 3. **Live Proxy Smoke Test (Optional / Live Mode)**:
    If testing live models via Docker/WSL, supply `DEEPSEEK_API_KEY` / `ANTHROPIC_API_KEY` in `.env` and run `docker compose up`.
 4. **Portal Submission**:
@@ -141,3 +141,19 @@ uv run python -m tests.eval.run_eval                                            
 cd ../web
 npm run build                                                                            # clean build (890ms)
 ```
+
+## 2026-10-19/20 docs cleanup and re-verified gates
+
+- **Withdrawn** (claims the code does not support): `docs/HACKATHON_SUBMISSION_GUIDE.md`,
+  `docs/PITCH_DECK_CONTENT.md`, `docs/DEMO_VIDEO_SCRIPT.md`, `docs/presentation.html`.
+  `web/public/deck.html` holds the same superseded 12-slide content and is not linked from
+  the app; remove or regenerate it before sharing the repository.
+- **New**: `docs/TECHNICAL_DOCUMENT.md` (architecture, algorithms, security design) and
+  `docs/SECURITY_SELF_ASSESSMENT.md` (permission tiers, OWASP LLM Top 10 2025 mapping,
+  R1-R19 known-risk register, corrections to the withdrawn statements). It replaces
+  `docs/SECURITY_SELF_ASSESSMENT_REPORT.md`.
+- **Gates re-run against `main` at `051e40d`** (worktree, same lockfile and venv):
+  `ruff check` clean; `ruff format --check` one file (`tests/graph/test_graph.py`);
+  `mypy` success, 59 source files; `pytest tests -q` 411 passed, 12 skipped (env-gated),
+  exit 0; `calc` branch coverage 100.00% under `--cov-fail-under=100`; web `tsc -b` clean,
+  `vitest run` 10/10 in 2 files, `npm run build` clean.
