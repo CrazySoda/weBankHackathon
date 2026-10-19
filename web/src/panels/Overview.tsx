@@ -290,6 +290,12 @@ export function bestRoute(state: DealState) {
   return state.fx_options.reduce((a, b) => (b.net_minor > a.net_minor ? b : a));
 }
 
+/** The route the approver picked, if it is still one of this deal's quotes; else the best. */
+export function chosenRoute(state: DealState, selectedId: string | null | undefined) {
+  const picked = selectedId ? state.fx_options.find((o) => o.route_id === selectedId) : undefined;
+  return picked ?? bestRoute(state);
+}
+
 export function totalAmountOf(state: DealState): number | null {
   return findAmount(state);
 }

@@ -167,6 +167,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(404, "unknown deal")
         if runner.deals[deal_id].running:
             raise HTTPException(409, "deal already running")
+        if await runner.awaiting_decision(deal_id):
+            raise HTTPException(
+                409,
+                "deal is waiting for a decision: approve, reject or upload a corrected document",
+            )
         task = asyncio.create_task(runner.run(deal_id))
         background_tasks.add(task)
         task.add_done_callback(background_tasks.discard)
@@ -227,13 +232,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 raise HTTPException(
                     400, f"Cannot approve deal with {len(open_blocks)} open block finding(s)"
                 )
+        if payload.fx_route is not None and payload.fx_route not in {
+            o.route_id for o in rec.state.fx_options
+        }:
+            raise HTTPException(400, f"unknown FX route {payload.fx_route!r}")
         task = asyncio.create_task(runner.resume(deal_id, payload.model_dump(exclude_none=True)))
         background_tasks.add(task)
         task.add_done_callback(background_tasks.discard)
         return {"resumed": True, **SYNTHETIC_BADGE}
 
     @app.post("/deals/{deal_id}/sign_demo")
-    async def sign_demo(deal_id: str) -> dict[str, Any]:
+    async def sign_demo(deal_id: str, body: SignDemoBody | None = None) -> dict[str, Any]:
         if settings.env != "demo":
             raise HTTPException(403, "demo signing unavailable in non-demo environment")
         if deal_id not in runner.deals:
@@ -255,7 +264,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         priv_bytes = base64.b64decode(DEMO_PRIVATE_KEY_B64)
         priv_key = Ed25519PrivateKey.from_private_bytes(priv_bytes)
-        render_data = approval_render(rec.state)
+        signed_state = rec.state
+        if body is not None and body.fx_route is not None:
+            if body.fx_route not in {o.route_id for o in rec.state.fx_options}:
+                raise HTTPException(400, f"unknown FX route {body.fx_route!r}")
+            signed_state = rec.state.model_copy(update={"selected_fx_route": body.fx_route})
+        render_data = approval_render(signed_state)
         h = deal_hash(render_data)
         now_str = datetime.now(UTC).isoformat()
         approval = SignedApproval(
@@ -381,6 +395,11 @@ class ResumeBody(BaseModel):
     action: str = "resolve"
     approval: dict[str, Any] | None = None
     note: str = ""
+    fx_route: str | None = None  # the route the approver signed (DECISIONS #26)
+
+
+class SignDemoBody(BaseModel):
+    fx_route: str | None = None
 
 
 def _module_app() -> FastAPI | None:

@@ -23,6 +23,8 @@ from app.db.persistence import DealStore, PostgresAuditChain
 from app.graph.build import build_graph
 from app.graph.nodes.extract_doc import (
     ALLOWED_KINDS as ALLOWED_DOC_KINDS,
+)
+from app.graph.nodes.extract_doc import (
     extract_doc as extract_doc_node,
 )
 from app.graph.state import DealState, DocRef, new_id
@@ -295,7 +297,9 @@ class DealRunner:
             update={
                 "documents": [doc for doc in rec.state.documents if doc.doc_id != doc_id],
                 "extracted": [item for item in rec.state.extracted if item.doc_id != doc_id],
-                "injection_flags": [flag for flag in rec.state.injection_flags if flag.doc_id != doc_id],
+                "injection_flags": [
+                    flag for flag in rec.state.injection_flags if flag.doc_id != doc_id
+                ],
             }
         )
         self._persist(deal_id)
@@ -343,6 +347,16 @@ class DealRunner:
             redis=self.idempotency,
             approval_verifier=self.approval_verifier,
         )
+
+    async def awaiting_decision(self, deal_id: str) -> bool:
+        """True while the deal's graph is parked at a human step (approval or corrected
+        document). Re-running it from the start abandons that step and, seen live, made a
+        deal that was ready for approval escalate; it can only be resumed."""
+        rec = self._require(deal_id)
+        graph = build_graph(self._graph_ctx(deal_id), checkpointer=self._checkpointer(deal_id))
+        config: RunnableConfig = {"configurable": {"thread_id": rec.thread_id}}
+        snapshot = await graph.aget_state(config)
+        return bool(getattr(snapshot, "interrupts", ()))
 
     async def run(self, deal_id: str) -> None:
         rec = self._require(deal_id)

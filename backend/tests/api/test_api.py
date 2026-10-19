@@ -136,6 +136,47 @@ class TestFullFlow:
         assert approval.method == "demo_key"
         assert approval.deal_hash == deal_hash(approval_render(runner.deals[deal_id].state))
 
+    async def test_demo_signer_signs_the_chosen_fx_route(self, app_client):
+        from app.graph.state import FxOption, SignedApproval
+        from app.security.approval import approval_render, deal_hash
+
+        def opt(route_id: str, net: int) -> FxOption:
+            return FxOption(
+                route_id=route_id,
+                provider=route_id,
+                sell_currency="USD",
+                buy_currency="CNY",
+                amount_minor=100,
+                net_minor=net,
+                effective_rate_scaled=7_000_000,
+                spread_bp=10,
+                fee_minor=1,
+            )
+
+        app, runner = app_client
+        rec = runner.create_deal("demo-tenant")
+        deal_id = rec.state.deal_id
+        rec.state = rec.state.model_copy(update={"fx_options": [opt("a", 100), opt("b", 300)]})
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            default = await client.post(f"/deals/{deal_id}/sign_demo")
+            chosen = await client.post(f"/deals/{deal_id}/sign_demo", json={"fx_route": "a"})
+            unknown = await client.post(f"/deals/{deal_id}/sign_demo", json={"fx_route": "zzz"})
+            bad_resume = await client.post(
+                f"/deals/{deal_id}/resume", json={"action": "approve", "fx_route": "zzz"}
+            )
+        default_hash = SignedApproval.model_validate(default.json()["approval"]).deal_hash
+        chosen_hash = SignedApproval.model_validate(chosen.json()["approval"]).deal_hash
+        state = runner.deals[deal_id].state
+        assert default_hash == deal_hash(approval_render(state))  # best route "b" by default
+        assert chosen_hash == deal_hash(
+            approval_render(state.model_copy(update={"selected_fx_route": "a"}))
+        )
+        assert chosen_hash != default_hash
+        assert unknown.status_code == 400
+        assert bad_resume.status_code == 400
+
     async def test_demo_signer_refused_outside_demo_env(self, tmp_path: Path):
         app = create_app(
             Settings(litellm_virtual_key="sk-test", approval_signing_key="k", env="dev")
@@ -274,6 +315,13 @@ class TestFullFlow:
             state = (await client.get(f"/deals/{deal_id}")).json()["state"]
             assert state["policy"]["decision"] == "allow"
             assert state["fx_options"]
+
+            # 5b. re-running a deal parked at approval is refused and changes nothing
+            again = await client.post(f"/deals/{deal_id}/run")
+            assert again.status_code == 409
+            assert "waiting for a decision" in again.json()["detail"]
+            unchanged = (await client.get(f"/deals/{deal_id}")).json()["state"]
+            assert unchanged["escalation_reason"] is None
 
             # 6. resume with approval -> execute -> receipt
             screen = next(

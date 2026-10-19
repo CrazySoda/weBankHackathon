@@ -29,7 +29,21 @@ const ROUTE_LABELS: Record<string, { label: string; desc: string; icon: React.El
   },
 };
 
-export default function Fx({ state, onRunReview, onAddDocuments }: { state: DealState; onRunReview?: () => void; onAddDocuments?: () => void }) {
+export default function Fx({
+  state,
+  selectedRoute,
+  onSelectRoute,
+  onRunReview,
+  onAddDocuments,
+}: {
+  state: DealState;
+  /** The route the approver picked (null = the recommended one). */
+  selectedRoute?: string | null;
+  /** Present only while the deal is waiting for approval; absent = comparison only. */
+  onSelectRoute?: (routeId: string | null) => void;
+  onRunReview?: () => void;
+  onAddDocuments?: () => void;
+}) {
   if (state.fx_options.length === 0) {
     const hasDocuments = state.documents.length > 0;
     const reviewed = Boolean(state.check_plan);
@@ -49,6 +63,10 @@ export default function Fx({ state, onRunReview, onAddDocuments }: { state: Deal
 
   // Sort by net_minor descending (best first)
   const sorted = [...state.fx_options].sort((a, b) => b.net_minor - a.net_minor);
+  const chosenId =
+    selectedRoute && sorted.some((o) => o.route_id === selectedRoute)
+      ? selectedRoute
+      : sorted[0].route_id;
   const proceedsByCurrency = sorted.reduce((groups, route) => {
     const current = groups.get(route.buy_currency) ?? [];
     current.push(route);
@@ -62,7 +80,9 @@ export default function Fx({ state, onRunReview, onAddDocuments }: { state: Deal
         <div>
           <h2 style={{ margin: 0, fontSize: 16 }}>Payment route comparison</h2>
           <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--text-dim, #94a3b8)" }}>
-            Compare estimated proceeds, exchange rates, and fees for each option.
+            {onSelectRoute
+              ? "Click a card to choose the route to pay through. Your choice is part of what you sign."
+              : "Compare estimated proceeds, exchange rates, and fees for each option."}
           </p>
         </div>
         <SyntheticChip />
@@ -76,7 +96,8 @@ export default function Fx({ state, onRunReview, onAddDocuments }: { state: Deal
             {proceedsByCurrency.size > 1 && <div className="fx-proceeds-currency">Payout in {currency}</div>}
             {routes.map((route) => {
               const info = ROUTE_LABELS[route.route_id];
-              const isBest = route.route_id === sorted[0].route_id;
+              // only the route that is selected (by default the recommended one) is highlighted
+              const isBest = route.route_id === chosenId;
               return <div className="fx-proceeds-row" key={route.route_id}>
                 <span className="fx-proceeds-label">{info?.label ?? route.provider}</span>
                 <div className="fx-proceeds-track" role="img" aria-label={`${info?.label ?? route.provider}: ${formatMoney(route.net_minor, currency)}`}>
@@ -90,9 +111,14 @@ export default function Fx({ state, onRunReview, onAddDocuments }: { state: Deal
       </section>
 
       {/* 3 Ranked Cards */}
-      <div className="fx-cards-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14, marginBottom: 18 }}>
+      <div
+        className="fx-cards-grid"
+        role={onSelectRoute ? "radiogroup" : undefined}
+        aria-label={onSelectRoute ? "Payment route to approve" : undefined}
+        style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14, marginBottom: 18 }}>
         {sorted.map((route, idx) => {
           const isBest = idx === 0;
+          const isChosen = route.route_id === chosenId;
           const info = ROUTE_LABELS[route.route_id] || {
             label: route.provider,
             desc: "Custom trade settlement route",
@@ -103,16 +129,32 @@ export default function Fx({ state, onRunReview, onAddDocuments }: { state: Deal
           return (
             <div
               key={route.route_id}
-              className={`fx-route-card ${isBest ? "is-best-route" : ""}`}
+              className={`fx-route-card ${isChosen ? "is-best-route" : ""}`}
+              // Selectable while the deal awaits approval: one click on the card picks it.
+              {...(onSelectRoute
+                ? {
+                    role: "radio",
+                    "aria-checked": isChosen,
+                    tabIndex: 0,
+                    onClick: () => onSelectRoute(isBest ? null : route.route_id),
+                    onKeyDown: (e: React.KeyboardEvent) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onSelectRoute(isBest ? null : route.route_id);
+                      }
+                    },
+                  }
+                : {})}
               style={{
+                cursor: onSelectRoute ? "pointer" : undefined,
                 background: "var(--bg-card, #161e29)",
-                border: isBest
+                border: isChosen
                   ? "2px solid var(--accent-cyan, #06b6d4)"
                   : "1px solid var(--border-subtle, #232d3b)",
                 borderRadius: "var(--radius, 10px)",
                 padding: "16px",
                 position: "relative",
-                boxShadow: isBest ? "0 0 16px rgba(6, 182, 212, 0.15)" : undefined,
+                boxShadow: isChosen ? "0 0 16px rgba(6, 182, 212, 0.15)" : undefined,
               }}
             >
               {isBest && (
@@ -121,8 +163,10 @@ export default function Fx({ state, onRunReview, onAddDocuments }: { state: Deal
                     position: "absolute",
                     top: -10,
                     right: 14,
-                    background: "var(--accent-cyan, #06b6d4)",
-                    color: "#0b0f14",
+                    // a plain label when another route is selected: only the selected card is highlighted
+                    background: isChosen ? "var(--accent-cyan, #06b6d4)" : "var(--bg-card, #161e29)",
+                    color: isChosen ? "#0b0f14" : "var(--text-dim, #94a3b8)",
+                    border: isChosen ? "none" : "1px solid var(--border-subtle, #232d3b)",
                     fontSize: 10,
                     fontWeight: 800,
                     padding: "2px 8px",
@@ -134,13 +178,13 @@ export default function Fx({ state, onRunReview, onAddDocuments }: { state: Deal
                     letterSpacing: "0.05em",
                   }}
                 >
-                  <CheckCircle2 size={11} />
+                  {isChosen && <CheckCircle2 size={11} />}
                   <span>Recommended Route</span>
                 </div>
               )}
 
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <div style={{ color: isBest ? "var(--accent-cyan, #06b6d4)" : "var(--text-dim, #94a3b8)" }}>
+                <div style={{ color: isChosen ? "var(--accent-cyan, #06b6d4)" : "var(--text-dim, #94a3b8)" }}>
                   <Icon size={18} />
                 </div>
                 <div>
@@ -160,7 +204,7 @@ export default function Fx({ state, onRunReview, onAddDocuments }: { state: Deal
                     fontSize: 22,
                     fontWeight: 800,
                     fontFamily: "var(--mono)",
-                    color: isBest ? "var(--accent-cyan, #06b6d4)" : "var(--text, #e6ebf2)",
+                    color: isChosen ? "var(--accent-cyan, #06b6d4)" : "var(--text, #e6ebf2)",
                   }}
                   className="tabular"
                 >
@@ -197,6 +241,19 @@ export default function Fx({ state, onRunReview, onAddDocuments }: { state: Deal
               <p style={{ margin: 0, fontSize: 11, color: "var(--text-dim, #94a3b8)", lineHeight: 1.35 }}>
                 {info.desc}
               </p>
+
+              {onSelectRoute && (
+                <div
+                  style={{
+                    marginTop: 12,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: isChosen ? "var(--accent-cyan, #06b6d4)" : "var(--text-dim, #94a3b8)",
+                  }}
+                >
+                  {isChosen ? "✓ Selected for approval" : "Click to select this route"}
+                </div>
+              )}
             </div>
           );
         })}
@@ -220,11 +277,15 @@ export default function Fx({ state, onRunReview, onAddDocuments }: { state: Deal
           </thead>
           <tbody>
             {sorted.map((o, idx) => (
-              <tr key={o.route_id} className={idx === 0 ? "best" : undefined}>
+              <tr key={o.route_id} className={o.route_id === chosenId ? "best" : undefined}>
                 <td>{ROUTE_LABELS[o.route_id]?.label ?? "Payment option"}</td>
                 <td>
                   {o.provider}
-                  {idx === 0 && <span className="best-tag">BEST</span>}
+                  {o.route_id === chosenId ? (
+                    <span className="best-tag">{idx === 0 ? "BEST" : "SELECTED"}</span>
+                  ) : (
+                    idx === 0 && <span className="muted" style={{ marginLeft: 6, fontSize: 10 }}>RECOMMENDED</span>
+                  )}
                 </td>
                 <td className="mono muted">
                   {o.sell_currency}/{o.buy_currency}
@@ -232,7 +293,7 @@ export default function Fx({ state, onRunReview, onAddDocuments }: { state: Deal
                 <td className="num tabular">{formatMoney(o.amount_minor, o.sell_currency)}</td>
                 <td className="num tabular">{formatMoney(o.fee_minor, o.fee_currency ?? o.buy_currency)}</td>
                 <td className="num tabular">{(o.spread_bp / 100).toFixed(2)}%</td>
-                <td className="num tabular" style={{ fontWeight: idx === 0 ? 700 : undefined }}>
+                <td className="num tabular" style={{ fontWeight: o.route_id === chosenId ? 700 : undefined }}>
                   {formatMoney(o.net_minor, o.buy_currency)}
                 </td>
                 <td className="num mono tabular">{formatRate(o.effective_rate_scaled)}</td>
