@@ -37,6 +37,7 @@ import {
   CircleAlert,
   Clock3,
   FileText,
+  XCircle,
 } from "lucide-react";
 import { documentReadiness } from "./documentReadiness";
 
@@ -367,6 +368,7 @@ export default function App() {
     state.policy?.decision === "allow" &&
     state.fx_options.length > 0 &&
     !state.approval &&
+    !state.declined &&
     !state.receipt &&
     !state.fatal_error &&
     !state.escalation_reason &&
@@ -377,7 +379,7 @@ export default function App() {
   const showApprovalBar =
     (interrupt !== null ||
       parkedAtApproval ||
-      (state && (state.amendment_draft || state.escalation_reason))) &&
+      (state && (state.amendment_draft || state.escalation_reason || state.declined))) &&
     !streaming &&
     state !== null &&
     !state.receipt;
@@ -559,6 +561,12 @@ export default function App() {
             <span className="chip chip-decision-allow">
               <CheckCircle2 size={12} />
               <span>Complete</span>
+            </span>
+          )}
+          {!running && state?.declined && !state.receipt && (
+            <span className="chip chip-sev-warn">
+              <XCircle size={12} />
+              <span>Declined</span>
             </span>
           )}
           {!running && state?.escalation_reason && (

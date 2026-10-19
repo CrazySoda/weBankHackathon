@@ -188,6 +188,9 @@ export interface DealState {
   findings: Finding[];
   fx_options: FxOption[];
   selected_fx_route?: string | null;
+  /** The approver declined: nothing was paid. */
+  declined?: boolean;
+  decline_note?: string;
   cash_projection: CashProjectionState | null;
   verified: Finding[];
   amendment_draft: string | null;
