@@ -99,6 +99,16 @@ up: ## start the full docker stack (backend :8000, web :5173, proxy :4000)
 	docker compose up --build -d
 	@echo "web console: http://localhost:5173 · api: http://localhost:8000/health"
 
+.PHONY: tunnel
+tunnel: ## start the stack and a temporary Cloudflare Quick Tunnel share URL
+	docker compose --profile tunnel up --build -d
+	./scripts/wait_for_tunnel_url.sh --profile tunnel
+
+.PHONY: tunnel-dev
+tunnel-dev: ## start Vite hot reload + temporary Quick Tunnel and print its URL
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile tunnel up --build -d
+	./scripts/wait_for_tunnel_url.sh -f docker-compose.yml -f docker-compose.dev.yml --profile tunnel
+
 .PHONY: up-dev
 up-dev: ## start the stack with Vite hot reload for web source changes
 	docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build -d
@@ -118,7 +128,10 @@ logs: ## tail backend + proxy logs
 
 .PHONY: logs-dev
 logs-dev: ## follow web, backend and proxy logs from the hot-reload stack
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml logs --tail=100 --timestamps -f web backend litellm
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile tunnel logs --tail=100 --timestamps -f web backend litellm tunnel
+
+.PHONY: dev-logs
+dev-logs: logs-dev ## alias for logs-dev (includes tunnel output when running)
 
 .PHONY: logs-web
 logs-web: ## follow only frontend/Vite logs from the hot-reload stack

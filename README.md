@@ -55,8 +55,10 @@ production authentication.
 | `make seeds` / `make seeds-verify` | regenerate synthetic PDFs / prove byte-identical |
 | `make render-config` / `make proxy` | render LiteLLM config from env / run the proxy via uvx |
 | `make up` / `make down` | production-style Docker stack lifecycle |
+| `make tunnel` | start the regular stack with a temporary showcase URL |
+| `make tunnel-dev` | start Vite hot reload with a temporary showcase URL |
 | `make up-dev` / `make down-dev` | Docker stack with Vite hot reload for frontend edits |
-| `make logs-dev` / `make logs-web` / `make status-dev` | follow dev logs or inspect dev service status |
+| `make dev-logs` / `make logs-dev` / `make logs-web` / `make status-dev` | follow dev logs, including tunnel output |
 | `make reset-demo` | full demo wipe |
 
 uv is the only supported Python runner (never bare `python`/`pip` — the
@@ -90,6 +92,21 @@ For the hot-reload Compose stack, recreate the backend with
 `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --force-recreate backend`.
 
 Then follow **[WALKTHROUGH.md](WALKTHROUGH.md)**.
+
+### Temporary showcase URL
+
+To share a deployment-style URL without a domain or Cloudflare account setup,
+run `make tunnel`. It prints a temporary `https://…trycloudflare.com` URL when
+the tunnel is ready. For frontend hot reload, run `make tunnel-dev` instead.
+`make dev-logs` follows the development stack logs, including tunnel output.
+The URL changes when the tunnel restarts. Stop the app and tunnel with
+`docker compose --profile tunnel down` (include both compose files when stopping
+the dev stack).
+
+Anyone with the URL can reach this demo. The demo signer and synthetic-data
+workflow are not production authentication, so use this for a controlled
+showcase only and keep real data and credentials out of it. See
+[Cloudflare Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/).
 
 ### Without Docker (offline tests + eval)
 

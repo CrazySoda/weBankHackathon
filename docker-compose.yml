@@ -122,6 +122,17 @@ services:
     depends_on:
       - backend
 
+  # Optional Cloudflare Quick Tunnel. It prints a temporary trycloudflare.com
+  # URL and needs no account token or custom domain.
+  # Kept behind a profile so local development never exposes itself by default.
+  tunnel:
+    image: cloudflare/cloudflared@sha256:b269e8abd07a5bf6f3f4be65d5050b2174eca89c56a0241a8ff32a16aec454e4 # cloudflared latest at 2026-10-19
+    profiles: ["tunnel"]
+    command: ["tunnel", "--no-autoupdate", "--url", "http://web:5173"]
+    restart: unless-stopped
+    depends_on:
+      - web
+
   # ---- Observability (profile: obs) — heavy; enable with --profile obs ----
   langfuse:
     image: langfuse/langfuse@sha256:a343f64e035eb01aeea358703a0428945d909d01e19452509a5a830862dda878 # v3
