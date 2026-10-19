@@ -122,7 +122,7 @@ Updated: 2026-10-17 (pre-submission fixes and Windows-side quality gates re-veri
 1. **Screen Recording for Competition Video**:
    `docs/DEMO_VIDEO_SCRIPT.md` was withdrawn on 2026-10-19 (its walkthrough claimed features the code does not have — SWIFT MT707 sending, passkey approval, FISCO BCOS anchoring, "90 seconds"). Record the competition video from the final deck instead: the four one-click demo scenarios (`clean`, `discrepancy`, `mismatch`, `injection`) and the hero correct-and-resume flow, keeping every spoken claim to what the console actually shows.
 2. **Pitch Deck Presentation Deck Styled**:
-   `docs/presentation.html` and `web/public/deck.html` (12 slides) were superseded and withdrawn on 2026-10-19 for the same reason. The submission deck is the external 14-slide PowerPoint; it is portal collateral, not a repository file.
+   `docs/presentation.html` (12 slides) was superseded and withdrawn on 2026-10-19 for the same reason. The submission deck is the external 14-slide PowerPoint; it is portal collateral, not a repository file.
 3. **Live Proxy Smoke Test (Optional / Live Mode)**:
    If testing live models via Docker/WSL, supply `DEEPSEEK_API_KEY` / `ANTHROPIC_API_KEY` in `.env` and run `docker compose up`.
 4. **Portal Submission**:
@@ -146,8 +146,8 @@ npm run build                                                                   
 
 - **Withdrawn** (claims the code does not support): `docs/HACKATHON_SUBMISSION_GUIDE.md`,
   `docs/PITCH_DECK_CONTENT.md`, `docs/DEMO_VIDEO_SCRIPT.md`, `docs/presentation.html`.
-  `web/public/deck.html` holds the same superseded 12-slide content and is not linked from
-  the app; remove or regenerate it before sharing the repository.
+  `web/public/deck.html` held the same superseded 12-slide content, was not linked from
+  the app, and was deleted on 2026-10-20.
 - **New**: `docs/TECHNICAL_DOCUMENT.md` (architecture, algorithms, security design) and
   `docs/SECURITY_SELF_ASSESSMENT.md` (permission tiers, OWASP LLM Top 10 2025 mapping,
   R1-R19 known-risk register, corrections to the withdrawn statements). It replaces
